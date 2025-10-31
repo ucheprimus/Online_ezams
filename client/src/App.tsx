@@ -1,25 +1,27 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Dashboard from "./pages/Dashboard";
+import Home from "./pages/Home";
 
-function App() {
-  const [serverStatus, setServerStatus] = useState("Connecting...");
-
-  useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/health")
-      .then((res) => setServerStatus(res.data.message))
-      .catch(() => setServerStatus("❌ Backend not reachable"));
-  }, []);
-
-  return (
-    <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-light">
-      <h1 className="display-5 fw-bold text-primary mb-3">
-        🎓 Online Learning Platform
-      </h1>
-      <p className="lead text-secondary">{serverStatus}</p>
-      <button className="btn btn-outline-primary mt-3">Get Started</button>
-    </div>
-  );
+function Protected({ children }) {
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" />;
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={
+          <Protected>
+            <Dashboard />
+          </Protected>
+        }/>
+      </Routes>
+    </BrowserRouter>
+  );
+}
