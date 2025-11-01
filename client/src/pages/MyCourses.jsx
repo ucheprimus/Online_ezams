@@ -1,0 +1,487 @@
+// client/src/pages/MyCourses.jsx
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Button,
+  Badge,
+  Alert,
+  Modal,
+  Toast,
+  ToastContainer,
+} from "react-bootstrap";
+import axios from "axios";
+import "./MyCourses.css"; // Import the CSS file
+
+const MyCourses = () => {
+  const { user, isInstructor } = useAuth();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showShareToast, setShowShareToast] = useState(false);
+  const [copiedCourseTitle, setCopiedCourseTitle] = useState("");
+
+  // Default thumbnails for fallback
+  const defaultThumbnails = {
+    'web-dev': 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=225&fit=crop',
+    'data-science': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=225&fit=crop',
+    'mobile-dev': 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=225&fit=crop',
+    'design': 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&h=225&fit=crop',
+    'business': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=225&fit=crop',
+    'marketing': 'https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?w=400&h=225&fit=crop',
+    'music': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=225&fit=crop',
+    'photography': 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=400&h=225&fit=crop',
+    'default': 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?w=400&h=225&fit=crop'
+  };
+
+  useEffect(() => {
+    fetchMyCourses();
+  }, []);
+
+  const fetchMyCourses = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      console.log("Fetching courses for:", isInstructor ? "Instructor" : "Student");
+
+      if (isInstructor) {
+        const response = await axios.get(
+          "http://localhost:5000/api/courses/instructor/my-courses",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        console.log("Instructor courses response:", response.data);
+        setCourses(response.data);
+      } else {
+        const response = await axios.get("http://localhost:5000/api/courses", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        console.log("Student courses response:", response.data);
+        setCourses(response.data.courses || []);
+      }
+    } catch (err) {
+      console.error("Fetch courses error:", err);
+      console.error("Error details:", err.response?.data);
+      setError(err.response?.data?.message || "Failed to fetch courses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublishToggle = async (courseId, currentStatus) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(
+        `http://localhost:5000/api/courses/${courseId}`,
+        { isPublished: !currentStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update local state
+      setCourses(
+        courses.map((course) =>
+          course._id === courseId
+            ? { ...course, isPublished: !currentStatus }
+            : course
+        )
+      );
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update course");
+    }
+  };
+
+  const handleDeleteClick = (course) => {
+    setCourseToDelete(course);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!courseToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(
+        `http://localhost:5000/api/courses/${courseToDelete._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setCourses(courses.filter((c) => c._id !== courseToDelete._id));
+      setShowDeleteModal(false);
+      setCourseToDelete(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete course");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleShareCourse = async (course) => {
+    try {
+      // Create the course URL
+      const courseUrl = `${window.location.origin}/courses/${course._id}`;
+      
+      // Check if the Web Share API is available
+      if (navigator.share) {
+        await navigator.share({
+          title: course.title,
+          text: course.description,
+          url: courseUrl,
+        });
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(courseUrl);
+        setCopiedCourseTitle(course.title);
+        setShowShareToast(true);
+      }
+    } catch (err) {
+      console.error('Error sharing course:', err);
+      // Fallback to clipboard if Web Share fails
+      try {
+        const courseUrl = `${window.location.origin}/courses/${course._id}`;
+        await navigator.clipboard.writeText(courseUrl);
+        setCopiedCourseTitle(course.title);
+        setShowShareToast(true);
+      } catch (clipboardErr) {
+        setError('Failed to share course link');
+      }
+    }
+  };
+
+  const getCategoryDisplayName = (category) => {
+    const categoryMap = {
+      'web-dev': 'Web Development',
+      'data-science': 'Data Science',
+      'mobile-dev': 'Mobile Development',
+      'design': 'Design',
+      'business': 'Business',
+      'marketing': 'Marketing',
+      'music': 'Music',
+      'photography': 'Photography'
+    };
+    return categoryMap[category] || category;
+  };
+
+  if (loading) {
+    return (
+      <Container fluid className="my-courses-container px-3 px-md-4 py-4">
+        <div className="text-center py-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
+  return (
+    <Container fluid className="my-courses-container px-3 px-md-4 py-4">
+      {/* Header */}
+      <Row className="mb-4">
+        <Col md={8}>
+          <h1 className="page-title">
+            {isInstructor ? "My Courses" : "My Learning"}
+          </h1>
+          <p className="page-subtitle">
+            {isInstructor
+              ? "Manage and track your course content"
+              : "Continue your learning journey"}
+          </p>
+        </Col>
+        {isInstructor && (
+          <Col md={4} className="text-md-end mt-3 mt-md-0">
+            <Button
+              as={Link}
+              to="/dashboard/create-course"
+              className="create-btn"
+            >
+              <i className="bi bi-plus-circle me-2"></i>
+              Create New Course
+            </Button>
+          </Col>
+        )}
+      </Row>
+
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Courses List */}
+      {courses.length === 0 ? (
+        <Card className="empty-card border-0">
+          <Card.Body className="text-center py-5">
+            <div className="empty-icon mb-3">{isInstructor ? "📚" : "🎓"}</div>
+            <h4 className="empty-title">
+              {isInstructor ? "No courses yet" : "No enrolled courses"}
+            </h4>
+            <p className="empty-description">
+              {isInstructor
+                ? "Start sharing your knowledge by creating your first course"
+                : "Explore our course catalog and start learning today"}
+            </p>
+            <Button
+              as={Link}
+              to={isInstructor ? "/dashboard/create-course" : "/courses"}
+              className="create-btn mt-3"
+            >
+              {isInstructor ? "Create Your First Course" : "Browse Courses"}
+            </Button>
+          </Card.Body>
+        </Card>
+      ) : (
+        <Row>
+          {courses.map((course) => (
+            <Col key={course._id} lg={6} xl={4} className="mb-4">
+              <Card className="course-card h-100 border-0">
+                <div className="course-thumbnail">
+                  <img
+                    src={
+                      course.thumbnail && course.thumbnail.trim() !== '' 
+                        ? course.thumbnail 
+                        : (defaultThumbnails[course.category] || defaultThumbnails.default)
+                    }
+                    alt={course.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      console.log('Image load error, using category fallback');
+                      e.target.onerror = null;
+                      e.target.src = defaultThumbnails[course.category] || defaultThumbnails.default;
+                    }}
+                  />
+                  {isInstructor && (
+                    <div className="course-overlay">
+                      <Badge
+                        bg={course.isPublished ? "success" : "warning"}
+                        className="status-badge"
+                      >
+                        {course.isPublished ? "Published" : "Draft"}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                <Card.Body className="p-4">
+                  <div className="d-flex justify-content-between align-items-start mb-2">
+                    <Badge bg="primary" className="category-badge">
+                      {getCategoryDisplayName(course.category)}
+                    </Badge>
+                    <Badge bg="secondary" className="level-badge">
+                      {course.level}
+                    </Badge>
+                  </div>
+
+                  <h5 className="course-title">{course.title}</h5>
+                  <p className="course-description">
+                    {course.description.length > 100
+                      ? course.description.substring(0, 100) + "..."
+                      : course.description}
+                  </p>
+
+                  <div className="course-stats mb-3">
+                    {isInstructor ? (
+                      // Instructor stats
+                      <>
+                        <div className="stat-item">
+                          <i className="bi bi-people"></i>
+                          <span>
+                            {course.studentsEnrolled?.length || 0} students
+                          </span>
+                        </div>
+                        <div className="stat-item">
+                          <i className="bi bi-star-fill"></i>
+                          <span>{course.averageRating || "0.0"}</span>
+                        </div>
+                        <div className="stat-item">
+                          <i className="bi bi-currency-dollar"></i>
+                          <span>
+                            {course.price === 0 ? "Free" : `$${course.price}`}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      // Student stats
+                      <>
+                        <div className="stat-item">
+                          <i className="bi bi-play-circle"></i>
+                          <span>{course.progress || 0}% Complete</span>
+                        </div>
+                        <div className="stat-item">
+                          <i className="bi bi-clock"></i>
+                          <span>
+                            {course.lastAccessed
+                              ? "Recently viewed"
+                              : "Not started"}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="course-actions">
+                    {isInstructor ? (
+                      // Instructor actions
+                      <>
+                        <Button
+                          variant={
+                            course.isPublished
+                              ? "outline-warning"
+                              : "outline-success"
+                          }
+                          size="sm"
+                          onClick={() =>
+                            handlePublishToggle(course._id, course.isPublished)
+                          }
+                          className="action-btn"
+                        >
+                          <i
+                            className={`bi bi-${
+                              course.isPublished ? "eye-slash" : "eye"
+                            } me-1`}
+                          ></i>
+                          {course.isPublished ? "Unpublish" : "Publish"}
+                        </Button>
+
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          as={Link}
+                          to={`/dashboard/edit-course/${course._id}`}
+                          className="action-btn"
+                        >
+                          <i className="bi bi-pencil me-1"></i>
+                          Edit
+                        </Button>
+
+                        <Button
+                          variant="outline-info"
+                          size="sm"
+                          onClick={() => handleShareCourse(course)}
+                          className="action-btn"
+                          title="Share course"
+                        >
+                          <i className="bi bi-share me-1"></i>
+                          Share
+                        </Button>
+
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleDeleteClick(course)}
+                          className="action-btn"
+                        >
+                          <i className="bi bi-trash me-1"></i>
+                          Delete
+                        </Button>
+                      </>
+                    ) : (
+                      // Student actions
+                      <>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          as={Link}
+                          to={`/courses/${course._id}`}
+                          className="action-btn continue-btn"
+                        >
+                          <i className="bi bi-play-circle me-1"></i>
+                          {course.progress > 0 ? "Continue" : "Start Learning"}
+                        </Button>
+
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          as={Link}
+                          to={`/courses/${course._id}/progress`}
+                          className="action-btn"
+                        >
+                          <i className="bi bi-graph-up me-1"></i>
+                          Progress
+                        </Button>
+
+                        <Button
+                          variant="outline-info"
+                          size="sm"
+                          onClick={() => handleShareCourse(course)}
+                          className="action-btn"
+                          title="Share course"
+                        >
+                          <i className="bi bi-share me-1"></i>
+                          Share
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
+
+      {/* Delete Confirmation Modal (Only for instructors) */}
+      {isInstructor && (
+        <Modal
+          show={showDeleteModal}
+          onHide={() => setShowDeleteModal(false)}
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Delete Course</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p>
+              Are you sure you want to delete{" "}
+              <strong>{courseToDelete?.title}</strong>?
+            </p>
+            <p className="text-danger mb-0">This action cannot be undone.</p>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete Course"}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      )}
+
+      {/* Share Success Toast */}
+      <ToastContainer position="top-end" className="p-3">
+        <Toast 
+          show={showShareToast} 
+          onClose={() => setShowShareToast(false)}
+          delay={3000}
+          autohide
+          bg="success"
+        >
+          <Toast.Header>
+            <i className="bi bi-check-circle-fill text-success me-2"></i>
+            <strong className="me-auto">Link Copied!</strong>
+          </Toast.Header>
+          <Toast.Body className="text-white">
+            Course link for "{copiedCourseTitle}" copied to clipboard!
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+    </Container>
+  );
+};
+
+export default MyCourses;

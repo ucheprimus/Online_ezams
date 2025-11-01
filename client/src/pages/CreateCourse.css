@@ -1,0 +1,302 @@
+/* client/src/pages/CreateCourse.css */
+.create-course-container {
+  background: #f8fafc;
+  min-height: 100vh;
+}
+
+.page-title {
+  color: #2d3748;
+  font-weight: 700;
+  font-size: 2.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+  color: #718096;
+  font-size: 1.15rem;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.form-card {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e2e8f0;
+  margin: 0 auto;
+}
+
+.form-label {
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-control-custom {
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  padding: 1rem 1.25rem;
+  height: auto;
+}
+
+.form-control-custom:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+  background: white;
+  transform: translateY(-1px);
+}
+
+.form-control-custom:disabled {
+  background: #f1f5f9;
+  opacity: 0.7;
+}
+
+/* Upload Method Selector */
+.upload-method-selector {
+  background: #f7fafc;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.method-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.method-btn {
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 180px;
+}
+
+.method-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* File Upload Area */
+.file-upload-area {
+  border: 3px dashed #cbd5e0;
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  background: #fafbfc;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload-area:hover {
+  border-color: #667eea;
+  background: #f0f4f8;
+  transform: translateY(-2px);
+}
+
+.upload-placeholder {
+  color: #718096;
+}
+
+.upload-placeholder i {
+  color: #a0aec0;
+}
+
+.selected-file-info {
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.file-name {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.file-size {
+  font-size: 0.875rem;
+}
+
+/* Quick Thumbnails */
+.quick-thumbnails {
+  background: #f7fafc;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.quick-thumbnails-label {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.quick-thumbnail-btn {
+  font-size: 0.8rem;
+  padding: 0.5rem 1rem;
+  text-transform: capitalize;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.quick-thumbnail-btn:hover {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+  transform: translateY(-1px);
+}
+
+/* Thumbnail Preview */
+.thumbnail-preview {
+  background: #f7fafc;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.preview-label {
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.preview-container {
+  display: inline-block;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.thumbnail-image {
+  max-width: 300px;
+  max-height: 169px;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.thumbnail-image:hover {
+  transform: scale(1.05);
+}
+
+/* Action Buttons */
+.action-btn {
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 1rem 2rem;
+  transition: all 0.3s ease;
+  min-width: 160px;
+}
+
+.cancel-btn {
+  border: 2px solid #e2e8f0;
+  color: #4a5568;
+  background: white;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+}
+
+.submit-btn:disabled {
+  opacity: 0.7;
+  transform: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .create-course-container {
+    padding: 1rem !important;
+  }
+  
+  .page-title {
+    font-size: 1.875rem;
+  }
+  
+  .page-subtitle {
+    font-size: 1.05rem;
+  }
+  
+  .form-card .card-body {
+    padding: 2rem 1.5rem !important;
+  }
+  
+  .method-buttons {
+    flex-direction: column;
+  }
+  
+  .method-btn {
+    width: 100%;
+  }
+  
+  .thumbnail-image {
+    max-width: 250px;
+    max-height: 141px;
+  }
+  
+  .file-upload-area {
+    padding: 2rem 1rem;
+  }
+  
+  .action-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .d-flex.gap-3 {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 576px) {
+  .page-title {
+    font-size: 1.625rem;
+  }
+  
+  .form-card .card-body {
+    padding: 1.5rem 1rem !important;
+  }
+  
+  .upload-method-selector {
+    padding: 1rem;
+  }
+  
+  .thumbnail-preview {
+    padding: 1.5rem;
+  }
+  
+  .thumbnail-image {
+    max-width: 200px;
+    max-height: 113px;
+  }
+  
+  .quick-thumbnails .d-flex {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .quick-thumbnail-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
