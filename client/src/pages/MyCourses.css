@@ -220,14 +220,14 @@
   color: white;
 }
 
-/* Specific button text optimizations */
-.action-btn:contains("Unpublish"),
-.action-btn:contains("Publish") {
+/* Specific button text optimizations - FIXED: Use classes instead of :contains */
+.action-btn.unpublish-btn,
+.action-btn.publish-btn {
   font-size: 0.7rem;
 }
 
-.action-btn:contains("Start Learning"),
-.action-btn:contains("Continue") {
+.action-btn.start-learning-btn,
+.action-btn.continue-btn {
   font-size: 0.7rem;
 }
 
@@ -290,11 +290,11 @@
   }
   
   /* Hide text on very small screens, show only icons */
-  .action-btn span {
+  .action-btn.text-hidden-on-mobile span {
     display: none;
   }
   
-  .action-btn .bi {
+  .action-btn.text-hidden-on-mobile .bi {
     margin-right: 0;
   }
   
@@ -334,25 +334,145 @@
   }
 }
 
-/* Special handling for 4 buttons (instructor) */
-.course-actions:has(.action-btn:nth-child(4)) {
+/* Special handling for 4 buttons (instructor) - FIXED: Use specific class */
+.course-actions.four-buttons {
   gap: 0.2rem;
 }
 
-.course-actions:has(.action-btn:nth-child(4)) .action-btn {
+.course-actions.four-buttons .action-btn {
   font-size: 0.65rem;
 }
 
-/* Special handling for 3 buttons (student) */
-.course-actions:has(.action-btn:nth-child(3)) {
+/* Special handling for 3 buttons (student) - FIXED: Use specific class */
+.course-actions.three-buttons {
   gap: 0.3rem;
 }
 
-.course-actions:has(.action-btn:nth-child(3)) .action-btn {
+.course-actions.three-buttons .action-btn {
   font-size: 0.7rem;
 }
 
 /* Ensure proper card height distribution */
 .course-card .card-body > *:last-child {
   margin-top: auto;
+}
+
+/* Pagination Styles */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.pagination {
+  margin-bottom: 0;
+}
+
+.pagination .page-link {
+  color: #667eea;
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+}
+
+.pagination .page-item.active .page-link {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+}
+
+.pagination .page-link:hover {
+  background-color: #f7fafc;
+  color: #764ba2;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 0;
+}
+
+/* Error States */
+.error-alert {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Success Toast */
+.toast-success {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  border: none;
+  border-radius: 12px;
+}
+
+/* Modal Styles */
+.modal-content {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  border-top: 1px solid #f1f5f9;
+  padding: 1.5rem;
+}
+
+/* Additional utility classes for button states */
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.action-btn.loading {
+  position: relative;
+  color: transparent;
+}
+
+.action-btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Card hover effects */
+.course-card:hover .course-title {
+  color: #667eea;
+}
+
+/* Badge variants */
+.status-badge.published {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+}
+
+.status-badge.draft {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+}
+
+/* Image fallback handling */
+.course-thumbnail img.fallback-image {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 3rem;
 }

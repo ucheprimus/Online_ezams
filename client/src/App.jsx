@@ -11,7 +11,8 @@ import Dashboard from './pages/Dashboard';
 import Courses from './pages/Courses';
 import CreateCourse from './pages/CreateCourse';
 import MyCourses from './pages/MyCourses';
-import EditCourse from './pages/EditCourse'; // ← ADD THIS IMPORT
+import EditCourse from './pages/EditCourse';
+import CourseDetail from './pages/CourseDetail'; // ← ADD THIS IMPORT
 
 // Layout wrapper for public pages (with Navbar)
 const PublicLayout = ({ children }) => (
@@ -31,8 +32,11 @@ function App() {
           <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
           <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
           
+          {/* Public Course Routes */}
+          <Route path="/courses/:id" element={<PublicLayout><CourseDetail /></PublicLayout>} />
+          <Route path="/courses" element={<PublicLayout><Courses /></PublicLayout>} />
+          
           {/* Future public routes can be added here */}
-          {/* <Route path="/courses" element={<PublicLayout><Courses /></PublicLayout>} /> */}
           {/* <Route path="/about" element={<PublicLayout><About /></PublicLayout>} /> */}
           
           {/* Protected Dashboard Routes - WITHOUT Navbar (has its own sidebar) */}
@@ -50,7 +54,7 @@ function App() {
             {/* Dashboard Routes */}
             <Route path="my-courses" element={<MyCourses />} />
             <Route path="create-course" element={<CreateCourse />} />
-            <Route path="edit-course/:id" element={<EditCourse />} /> {/* ← FIXED THIS LINE */}
+            <Route path="edit-course/:id" element={<EditCourse />} />
             {/* <Route path="students" element={<Students />} /> */}
             {/* <Route path="analytics" element={<Analytics />} /> */}
             {/* <Route path="browse" element={<BrowseCourses />} /> */}

@@ -13,9 +13,11 @@ import {
   Modal,
   Toast,
   ToastContainer,
+  Pagination,
+  Spinner
 } from "react-bootstrap";
 import axios from "axios";
-import "./MyCourses.css"; // Import the CSS file
+import "./MyCourses.css";
 
 const MyCourses = () => {
   const { user, isInstructor } = useAuth();
@@ -27,6 +29,14 @@ const MyCourses = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showShareToast, setShowShareToast] = useState(false);
   const [copiedCourseTitle, setCopiedCourseTitle] = useState("");
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    total: 0,
+    limit: 6
+  });
 
   // Default thumbnails for fallback
   const defaultThumbnails = {
@@ -43,28 +53,52 @@ const MyCourses = () => {
 
   useEffect(() => {
     fetchMyCourses();
-  }, []);
+  }, [pagination.currentPage]);
 
   const fetchMyCourses = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem("token");
       console.log("Fetching courses for:", isInstructor ? "Instructor" : "Student");
 
       if (isInstructor) {
+        // For instructors - get all their courses with pagination
         const response = await axios.get(
-          "http://localhost:5000/api/courses/instructor/my-courses",
+          `http://localhost:5000/api/courses/instructor/my-courses?page=${pagination.currentPage}&limit=${pagination.limit}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
         console.log("Instructor courses response:", response.data);
-        setCourses(response.data);
+        
+        // If backend doesn't support pagination for instructor courses, handle it client-side
+        const allCourses = response.data;
+        const startIndex = (pagination.currentPage - 1) * pagination.limit;
+        const endIndex = startIndex + pagination.limit;
+        const paginatedCourses = allCourses.slice(startIndex, endIndex);
+        
+        setCourses(paginatedCourses);
+        setPagination(prev => ({
+          ...prev,
+          total: allCourses.length,
+          totalPages: Math.ceil(allCourses.length / pagination.limit)
+        }));
       } else {
-        const response = await axios.get("http://localhost:5000/api/courses", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // For students - get enrolled courses with pagination
+        const response = await axios.get(
+          `http://localhost:5000/api/courses?page=${pagination.currentPage}&limit=${pagination.limit}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
         console.log("Student courses response:", response.data);
         setCourses(response.data.courses || []);
+        setPagination({
+          currentPage: response.data.currentPage || 1,
+          totalPages: response.data.totalPages || 1,
+          total: response.data.total || 0,
+          limit: pagination.limit
+        });
       }
     } catch (err) {
       console.error("Fetch courses error:", err);
@@ -73,6 +107,10 @@ const MyCourses = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
   };
 
   const handlePublishToggle = async (courseId, currentStatus) => {
@@ -116,6 +154,9 @@ const MyCourses = () => {
       setCourses(courses.filter((c) => c._id !== courseToDelete._id));
       setShowDeleteModal(false);
       setCourseToDelete(null);
+      
+      // Refresh the courses list
+      fetchMyCourses();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete course");
     } finally {
@@ -169,13 +210,45 @@ const MyCourses = () => {
     return categoryMap[category] || category;
   };
 
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    let items = [];
+    for (let number = 1; number <= pagination.totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === pagination.currentPage}
+          onClick={() => handlePageChange(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <div className="pagination-container">
+        <Pagination>
+          <Pagination.Prev
+            disabled={pagination.currentPage === 1}
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+          />
+          {items}
+          <Pagination.Next
+            disabled={pagination.currentPage === pagination.totalPages}
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+          />
+        </Pagination>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <Container fluid className="my-courses-container px-3 px-md-4 py-4">
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+        <div className="loading-spinner">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-3 text-muted">Loading courses...</p>
         </div>
       </Container>
     );
@@ -210,7 +283,8 @@ const MyCourses = () => {
       </Row>
 
       {error && (
-        <Alert variant="danger" dismissible onClose={() => setError("")}>
+        <Alert variant="danger" dismissible onClose={() => setError("")} className="error-alert">
+          <i className="bi bi-exclamation-triangle me-2"></i>
           {error}
         </Alert>
       )}
@@ -238,193 +312,198 @@ const MyCourses = () => {
           </Card.Body>
         </Card>
       ) : (
-        <Row>
-          {courses.map((course) => (
-            <Col key={course._id} lg={6} xl={4} className="mb-4">
-              <Card className="course-card h-100 border-0">
-                <div className="course-thumbnail">
-                  <img
-                    src={
-                      course.thumbnail && course.thumbnail.trim() !== '' 
-                        ? course.thumbnail 
-                        : (defaultThumbnails[course.category] || defaultThumbnails.default)
-                    }
-                    alt={course.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      console.log('Image load error, using category fallback');
-                      e.target.onerror = null;
-                      e.target.src = defaultThumbnails[course.category] || defaultThumbnails.default;
-                    }}
-                  />
-                  {isInstructor && (
-                    <div className="course-overlay">
-                      <Badge
-                        bg={course.isPublished ? "success" : "warning"}
-                        className="status-badge"
-                      >
-                        {course.isPublished ? "Published" : "Draft"}
+        <>
+          <Row>
+            {courses.map((course) => (
+              <Col key={course._id} lg={6} xl={4} className="mb-4">
+                <Card className="course-card h-100 border-0">
+                  <div className="course-thumbnail">
+                    <img
+                      src={
+                        course.thumbnail && course.thumbnail.trim() !== '' 
+                          ? course.thumbnail 
+                          : (defaultThumbnails[course.category] || defaultThumbnails.default)
+                      }
+                      alt={course.title}
+                      className={!course.thumbnail ? "fallback-image" : ""}
+                      onError={(e) => {
+                        console.log('Image load error, using category fallback');
+                        e.target.onerror = null;
+                        e.target.src = defaultThumbnails[course.category] || defaultThumbnails.default;
+                        e.target.className = "fallback-image";
+                      }}
+                    />
+                    {isInstructor && (
+                      <div className="course-overlay">
+                        <Badge
+                          className={`status-badge ${course.isPublished ? 'published' : 'draft'}`}
+                        >
+                          {course.isPublished ? "Published" : "Draft"}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  <Card.Body className="p-4">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <Badge bg="primary" className="category-badge">
+                        {getCategoryDisplayName(course.category)}
+                      </Badge>
+                      <Badge bg="secondary" className="level-badge">
+                        {course.level}
                       </Badge>
                     </div>
-                  )}
-                </div>
 
-                <Card.Body className="p-4">
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <Badge bg="primary" className="category-badge">
-                      {getCategoryDisplayName(course.category)}
-                    </Badge>
-                    <Badge bg="secondary" className="level-badge">
-                      {course.level}
-                    </Badge>
-                  </div>
+                    <h5 className="course-title">{course.title}</h5>
+                    <p className="course-description">
+                      {course.description.length > 100
+                        ? course.description.substring(0, 100) + "..."
+                        : course.description}
+                    </p>
 
-                  <h5 className="course-title">{course.title}</h5>
-                  <p className="course-description">
-                    {course.description.length > 100
-                      ? course.description.substring(0, 100) + "..."
-                      : course.description}
-                  </p>
+                    <div className="course-stats mb-3">
+                      {isInstructor ? (
+                        // Instructor stats
+                        <>
+                          <div className="stat-item">
+                            <i className="bi bi-people"></i>
+                            <span>
+                              {course.studentsEnrolled?.length || 0} students
+                            </span>
+                          </div>
+                          <div className="stat-item">
+                            <i className="bi bi-star-fill"></i>
+                            <span>{course.averageRating || "0.0"}</span>
+                          </div>
+                          <div className="stat-item">
+                            <i className="bi bi-currency-dollar"></i>
+                            <span>
+                              {course.price === 0 ? "Free" : `$${course.price}`}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        // Student stats
+                        <>
+                          <div className="stat-item">
+                            <i className="bi bi-play-circle"></i>
+                            <span>{course.progress || 0}% Complete</span>
+                          </div>
+                          <div className="stat-item">
+                            <i className="bi bi-clock"></i>
+                            <span>
+                              {course.lastAccessed
+                                ? "Recently viewed"
+                                : "Not started"}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-                  <div className="course-stats mb-3">
-                    {isInstructor ? (
-                      // Instructor stats
-                      <>
-                        <div className="stat-item">
-                          <i className="bi bi-people"></i>
-                          <span>
-                            {course.studentsEnrolled?.length || 0} students
-                          </span>
-                        </div>
-                        <div className="stat-item">
-                          <i className="bi bi-star-fill"></i>
-                          <span>{course.averageRating || "0.0"}</span>
-                        </div>
-                        <div className="stat-item">
-                          <i className="bi bi-currency-dollar"></i>
-                          <span>
-                            {course.price === 0 ? "Free" : `$${course.price}`}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      // Student stats
-                      <>
-                        <div className="stat-item">
-                          <i className="bi bi-play-circle"></i>
-                          <span>{course.progress || 0}% Complete</span>
-                        </div>
-                        <div className="stat-item">
-                          <i className="bi bi-clock"></i>
-                          <span>
-                            {course.lastAccessed
-                              ? "Recently viewed"
-                              : "Not started"}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                    <div className={`course-actions ${isInstructor ? 'four-buttons' : 'three-buttons'}`}>
+                      {isInstructor ? (
+                        // Instructor actions
+                        <>
+                          <Button
+                            variant={
+                              course.isPublished
+                                ? "outline-warning"
+                                : "outline-success"
+                            }
+                            size="sm"
+                            onClick={() =>
+                              handlePublishToggle(course._id, course.isPublished)
+                            }
+                            className={`action-btn ${course.isPublished ? 'unpublish-btn' : 'publish-btn'} text-hidden-on-mobile`}
+                          >
+                            <i
+                              className={`bi bi-${
+                                course.isPublished ? "eye-slash" : "eye"
+                              } me-1`}
+                            ></i>
+                            <span>{course.isPublished ? "Unpublish" : "Publish"}</span>
+                          </Button>
 
-                  <div className="course-actions">
-                    {isInstructor ? (
-                      // Instructor actions
-                      <>
-                        <Button
-                          variant={
-                            course.isPublished
-                              ? "outline-warning"
-                              : "outline-success"
-                          }
-                          size="sm"
-                          onClick={() =>
-                            handlePublishToggle(course._id, course.isPublished)
-                          }
-                          className="action-btn"
-                        >
-                          <i
-                            className={`bi bi-${
-                              course.isPublished ? "eye-slash" : "eye"
-                            } me-1`}
-                          ></i>
-                          {course.isPublished ? "Unpublish" : "Publish"}
-                        </Button>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            as={Link}
+                            to={`/dashboard/edit-course/${course._id}`}
+                            className="action-btn text-hidden-on-mobile"
+                          >
+                            <i className="bi bi-pencil me-1"></i>
+                            <span>Edit</span>
+                          </Button>
 
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          as={Link}
-                          to={`/dashboard/edit-course/${course._id}`}
-                          className="action-btn"
-                        >
-                          <i className="bi bi-pencil me-1"></i>
-                          Edit
-                        </Button>
+                          <Button
+                            variant="outline-info"
+                            size="sm"
+                            onClick={() => handleShareCourse(course)}
+                            className="action-btn text-hidden-on-mobile"
+                            title="Share course"
+                          >
+                            <i className="bi bi-share me-1"></i>
+                            <span>Share</span>
+                          </Button>
 
-                        <Button
-                          variant="outline-info"
-                          size="sm"
-                          onClick={() => handleShareCourse(course)}
-                          className="action-btn"
-                          title="Share course"
-                        >
-                          <i className="bi bi-share me-1"></i>
-                          Share
-                        </Button>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => handleDeleteClick(course)}
+                            className="action-btn text-hidden-on-mobile"
+                          >
+                            <i className="bi bi-trash me-1"></i>
+                            <span>Delete</span>
+                          </Button>
+                        </>
+                      ) : (
+                        // Student actions
+                        <>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            as={Link}
+                            to={`/courses/${course._id}`}
+                            className="action-btn continue-btn text-hidden-on-mobile"
+                          >
+                            <i className="bi bi-play-circle me-1"></i>
+                            <span>{course.progress > 0 ? "Continue" : "Start Learning"}</span>
+                          </Button>
 
-                        <Button
-                          variant="outline-danger"
-                          size="sm"
-                          onClick={() => handleDeleteClick(course)}
-                          className="action-btn"
-                        >
-                          <i className="bi bi-trash me-1"></i>
-                          Delete
-                        </Button>
-                      </>
-                    ) : (
-                      // Student actions
-                      <>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          as={Link}
-                          to={`/courses/${course._id}`}
-                          className="action-btn continue-btn"
-                        >
-                          <i className="bi bi-play-circle me-1"></i>
-                          {course.progress > 0 ? "Continue" : "Start Learning"}
-                        </Button>
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            as={Link}
+                            to={`/courses/${course._id}/progress`}
+                            className="action-btn text-hidden-on-mobile"
+                          >
+                            <i className="bi bi-graph-up me-1"></i>
+                            <span>Progress</span>
+                          </Button>
 
-                        <Button
-                          variant="outline-secondary"
-                          size="sm"
-                          as={Link}
-                          to={`/courses/${course._id}/progress`}
-                          className="action-btn"
-                        >
-                          <i className="bi bi-graph-up me-1"></i>
-                          Progress
-                        </Button>
-
-                        <Button
-                          variant="outline-info"
-                          size="sm"
-                          onClick={() => handleShareCourse(course)}
-                          className="action-btn"
-                          title="Share course"
-                        >
-                          <i className="bi bi-share me-1"></i>
-                          Share
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                          <Button
+                            variant="outline-info"
+                            size="sm"
+                            onClick={() => handleShareCourse(course)}
+                            className="action-btn text-hidden-on-mobile"
+                            title="Share course"
+                          >
+                            <i className="bi bi-share me-1"></i>
+                            <span>Share</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+          
+          {/* Pagination */}
+          {renderPagination()}
+        </>
       )}
 
       {/* Delete Confirmation Modal (Only for instructors) */}
@@ -455,8 +534,15 @@ const MyCourses = () => {
               variant="danger"
               onClick={handleDeleteConfirm}
               disabled={deleteLoading}
+              className={deleteLoading ? "loading" : ""}
             >
-              {deleteLoading ? "Deleting..." : "Delete Course"}
+              {deleteLoading ? (
+                <>
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                "Delete Course"
+              )}
             </Button>
           </Modal.Footer>
         </Modal>
@@ -469,7 +555,7 @@ const MyCourses = () => {
           onClose={() => setShowShareToast(false)}
           delay={3000}
           autohide
-          bg="success"
+          className="toast-success"
         >
           <Toast.Header>
             <i className="bi bi-check-circle-fill text-success me-2"></i>
