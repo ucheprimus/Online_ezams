@@ -122,7 +122,7 @@ const Dashboard = () => {
                 <Col xs={12} md={4} className="text-md-end">
                   <Button 
                     as={Link} 
-                    to={isInstructor ? '/dashboard/create-course' : '/courses'}
+                    to={isInstructor ? '/dashboard/create-course' : '/dashboard/browse'}
                     className="action-button fw-bold"
                     size="lg"
                   >
@@ -209,7 +209,7 @@ const Dashboard = () => {
                   <i className="bi bi-chevron-right quick-link-arrow"></i>
                 </Link>
 
-                <Link to="/courses" className="quick-link-item">
+                <Link to="/dashboard/browse" className="quick-link-item">
                   <div className="quick-link-icon">🔍</div>
                   <div className="quick-link-text">
                     <div className="quick-link-title">Browse Courses</div>

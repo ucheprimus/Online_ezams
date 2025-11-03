@@ -10,21 +10,33 @@ import {
   Form, 
   Spinner,
   InputGroup,
-  Alert
+  Alert,
+  Pagination
 } from 'react-bootstrap';
 import axios from 'axios';
-import './Courses.css'; // We'll create this for custom styles
+import { useAuth } from '../context/AuthContext';
+import './Courses.css';
 
 const Courses = () => {
+  const { user } = useAuth();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [enrolling, setEnrolling] = useState(null);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    total: 0,
+    limit: 12
+  });
+
   const [filters, setFilters] = useState({
     search: '',
     category: '',
     level: '',
-    sort: 'newest',
-    page: 1
+    sort: 'newest'
   });
 
   const categories = [
@@ -56,25 +68,37 @@ const Courses = () => {
 
   useEffect(() => {
     fetchCourses();
-  }, [filters]);
+  }, [filters, pagination.currentPage]);
 
   const fetchCourses = async () => {
     try {
       setLoading(true);
       setError('');
+      
       const params = new URLSearchParams();
       
       if (filters.search) params.append('search', filters.search);
       if (filters.category) params.append('category', filters.category);
       if (filters.level) params.append('level', filters.level);
       if (filters.sort) params.append('sort', filters.sort);
-      params.append('page', filters.page);
-      params.append('limit', '12');
+      params.append('page', pagination.currentPage);
+      params.append('limit', pagination.limit);
 
       const response = await axios.get(`http://localhost:5000/api/courses?${params.toString()}`);
       
-      // Handle both response structures
-      setCourses(response.data.courses || response.data || []);
+      // Your backend already filters published courses, but let's double-check
+      const publishedCourses = (response.data.courses || response.data || []).filter(course => 
+        course.isPublished !== false // Ensure only published courses are shown
+      );
+      
+      setCourses(publishedCourses);
+      
+      // Update pagination from backend response
+      setPagination(prev => ({
+        ...prev,
+        totalPages: response.data.totalPages || 1,
+        total: response.data.total || publishedCourses.length
+      }));
       
     } catch (err) {
       console.error('Failed to fetch courses:', err);
@@ -86,16 +110,48 @@ const Courses = () => {
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      page: key === 'page' ? value : 1 // Only keep page when explicitly changing page
-    }));
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPagination(prev => ({ ...prev, currentPage: 1 })); // Reset to first page on filter change
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
     fetchCourses();
+  };
+
+  const handleEnroll = async (courseId) => {
+    try {
+      setEnrolling(courseId);
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        // Redirect to login if not authenticated
+        window.location.href = '/login';
+        return;
+      }
+
+      await axios.post(
+        `http://localhost:5000/api/courses/${courseId}/enroll`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update local state to show enrolled
+      setCourses(prev => prev.map(course => 
+        course._id === courseId 
+          ? { ...course, isEnrolled: true, enrolledCount: (course.enrolledCount || 0) + 1 }
+          : course
+      ));
+
+      setError('');
+      
+    } catch (err) {
+      console.error('Enrollment error:', err);
+      setError(err.response?.data?.message || 'Failed to enroll in course');
+    } finally {
+      setEnrolling(null);
+    }
   };
 
   const clearFilters = () => {
@@ -103,9 +159,9 @@ const Courses = () => {
       search: '',
       category: '',
       level: '',
-      sort: 'newest',
-      page: 1
+      sort: 'newest'
     });
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
   const getCategoryDisplayName = (category) => {
@@ -131,6 +187,43 @@ const Courses = () => {
     return variants[level] || 'secondary';
   };
 
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    let items = [];
+    for (let number = 1; number <= pagination.totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === pagination.currentPage}
+          onClick={() => handlePageChange(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <div className="d-flex justify-content-center mt-4">
+        <Pagination>
+          <Pagination.Prev 
+            disabled={pagination.currentPage === 1}
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+          />
+          {items}
+          <Pagination.Next 
+            disabled={pagination.currentPage === pagination.totalPages}
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+          />
+        </Pagination>
+      </div>
+    );
+  };
+
   // Loading state
   if (loading && courses.length === 0) {
     return (
@@ -153,12 +246,12 @@ const Courses = () => {
         </Col>
       </Row>
 
-      {/* Filters Section - Made Responsive */}
+      {/* Filters Section */}
       <Card className="mb-4 border-0 shadow-sm">
         <Card.Body className="p-3 p-md-4">
           <Form onSubmit={handleSearch}>
             <Row className="g-2 g-md-3 align-items-end">
-              {/* Search - Full width on mobile, 6 cols on desktop */}
+              {/* Search */}
               <Col xs={12} md={6} lg={3}>
                 <Form.Label className="form-label-sm fw-medium">Search</Form.Label>
                 <InputGroup size="sm">
@@ -246,11 +339,18 @@ const Courses = () => {
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="danger" className="mb-4">
+        <Alert variant="danger" className="mb-4" dismissible onClose={() => setError('')}>
           <i className="bi bi-exclamation-triangle me-2"></i>
           {error}
         </Alert>
       )}
+
+      {/* Results Count */}
+      <div className="results-count mb-3">
+        <p className="text-muted">
+          Showing {courses.length} of {pagination.total} courses
+        </p>
+      </div>
 
       {/* Courses Grid */}
       {courses.length === 0 && !loading ? (
@@ -296,6 +396,16 @@ const Courses = () => {
                         {getCategoryDisplayName(course.category)}
                       </Badge>
                     </div>
+                    
+                    {/* Enrolled Badge */}
+                    {course.isEnrolled && (
+                      <div className="position-absolute top-0 end-0 m-2">
+                        <Badge bg="success" className="enrolled-badge">
+                          <i className="bi bi-check-circle me-1"></i>
+                          Enrolled
+                        </Badge>
+                      </div>
+                    )}
                   </div>
 
                   <Card.Body className="p-3 d-flex flex-column">
@@ -334,43 +444,67 @@ const Courses = () => {
                         <i className="bi bi-star-fill text-warning me-1 small"></i>
                         <small className="text-muted">
                           {course.averageRating ? course.averageRating.toFixed(1) : '0.0'}
-                          {course.enrollmentCount && (
+                          {course.enrolledCount && (
                             <span className="text-muted ms-1">
-                              ({course.enrollmentCount})
+                              ({course.enrolledCount})
                             </span>
                           )}
                         </small>
                       </div>
                     </div>
 
-                    <Button
-                      as={Link}
-                      to={`/courses/${course._id}`}
-                      variant="primary"
-                      className="w-100 mt-3"
-                      size="sm"
-                    >
-                      View Course
-                    </Button>
+                    <div className="course-actions mt-3">
+                      {course.isEnrolled ? (
+                        <Button
+                          as={Link}
+                          to={`/learn/${course._id}`}
+                          variant="success"
+                          className="w-100"
+                          size="sm"
+                        >
+                          <i className="bi bi-play-circle me-2"></i>
+                          Continue Learning
+                        </Button>
+                      ) : user ? (
+                        <Button
+                          variant="primary"
+                          onClick={() => handleEnroll(course._id)}
+                          disabled={enrolling === course._id}
+                          className="w-100"
+                          size="sm"
+                        >
+                          {enrolling === course._id ? (
+                            <>
+                              <Spinner animation="border" size="sm" className="me-2" />
+                              Enrolling...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-plus-circle me-2"></i>
+                              Enroll Now
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          as={Link}
+                          to={`/courses/${course._id}`}
+                          variant="outline-primary"
+                          className="w-100"
+                          size="sm"
+                        >
+                          View Details
+                        </Button>
+                      )}
+                    </div>
                   </Card.Body>
                 </Card>
               </Col>
             ))}
           </Row>
 
-          {/* Pagination - Uncomment when backend supports it */}
-          <div className="d-flex justify-content-center mt-4">
-            <Pagination>
-              <Pagination.Prev 
-                disabled={filters.page === 1}
-                onClick={() => handleFilterChange('page', filters.page - 1)}
-              />
-              <Pagination.Item active>{filters.page}</Pagination.Item>
-              <Pagination.Next 
-                onClick={() => handleFilterChange('page', filters.page + 1)}
-              />
-            </Pagination>
-          </div>
+          {/* Pagination */}
+          {renderPagination()}
         </>
       )}
     </Container>

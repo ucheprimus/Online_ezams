@@ -1,0 +1,19 @@
+/* client/src/pages/Checkout.css */
+.checkout-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+.payment-form {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.success-icon {
+  color: #28a745;
+}
+
+.course-thumbnail {
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+}

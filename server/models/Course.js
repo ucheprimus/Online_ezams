@@ -67,12 +67,34 @@ const courseSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  lectures: [{
-    title: String,
+  // CHANGED: Use curriculum with sections and lessons for better progress tracking
+  curriculum: [{
+    title: {
+      type: String,
+      required: true
+    },
     description: String,
-    videoUrl: String,
-    duration: Number, // in minutes
-    isPreview: Boolean
+    order: Number,
+    lessons: [{
+      title: {
+        type: String,
+        required: true
+      },
+      description: String,
+      videoUrl: String,
+      duration: Number, // in minutes
+      order: Number,
+      isPreview: {
+        type: Boolean,
+        default: false
+      },
+      content: String, // for text content
+      resources: [{
+        title: String,
+        url: String,
+        type: String // pdf, link, file, etc.
+      }]
+    }]
   }]
 }, {
   timestamps: true
@@ -87,6 +109,17 @@ courseSchema.methods.updateAverageRating = function() {
   
   const sum = this.ratings.reduce((acc, item) => acc + item.rating, 0);
   this.averageRating = Math.round((sum / this.ratings.length) * 10) / 10;
+};
+
+// Calculate total hours from curriculum
+courseSchema.methods.calculateTotalHours = function() {
+  let totalMinutes = 0;
+  this.curriculum.forEach(section => {
+    section.lessons.forEach(lesson => {
+      totalMinutes += lesson.duration || 0;
+    });
+  });
+  this.totalHours = Math.round(totalMinutes / 60 * 10) / 10; // Convert to hours with 1 decimal
 };
 
 // Index for better search performance

@@ -28,14 +28,15 @@ const DashboardLayout = () => {
     { path: '/dashboard/messages', icon: '💬', label: 'Messages', badge: '3' }
   ];
 
-  const studentLinks = [
-    { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
-    { path: '/dashboard/my-courses', icon: '📖', label: 'My Courses', badge: '4' },
-    { path: '/dashboard/browse', icon: '🔍', label: 'Browse Courses', badge: null },
-    { path: '/dashboard/progress', icon: '✅', label: 'Progress', badge: '2' },
-    { path: '/dashboard/certificates', icon: '🏆', label: 'Certificates', badge: '1' },
-    { path: '/dashboard/wishlist', icon: '❤️', label: 'Wishlist', badge: '3' }
-  ];
+// In your DashboardLayout.jsx - make sure studentLinks looks like this:
+const studentLinks = [
+  { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
+  { path: '/dashboard/my-courses', icon: '📖', label: 'My Courses', badge: '4' },
+  { path: '/dashboard/browse', icon: '🔍', label: 'Browse Courses', badge: null }, // ← This should point to dashboard/browse
+  { path: '/dashboard/progress', icon: '✅', label: 'Progress', badge: '2' },
+  { path: '/dashboard/certificates', icon: '🏆', label: 'Certificates', badge: '1' },
+  { path: '/dashboard/wishlist', icon: '❤️', label: 'Wishlist', badge: '3' }
+];
 
   const commonLinks = [
     { path: '/dashboard/profile', icon: '👤', label: 'Profile', badge: null },
