@@ -1,170 +1,152 @@
+// routes/progress.js
 const express = require('express');
 const router = express.Router();
-const { auth } = require('../middleware/auth'); // FIXED: Destructure auth from the export
 const Progress = require('../models/Progress');
-const Course = require('../models/Course');
+const { auth } = require('../middleware/auth');
 const { calculateAndUpdateProgress } = require('../utils/progressCalculator');
 
-// Mark lesson as completed
-router.post('/:courseId/complete-lesson', auth, async (req, res) => {
-  try {
-    const { lessonId } = req.body;
-    const studentId = req.user.id;
-    const courseId = req.params.courseId;
-
-    // Validate input
-    if (!lessonId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Lesson ID is required' 
-      });
-    }
-
-    // Verify enrollment
-    const isEnrolled = await Course.exists({
-      _id: courseId,
-      studentsEnrolled: studentId
-    });
-
-    if (!isEnrolled) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not enrolled in this course' 
-      });
-    }
-
-    // Update progress - add lesson to completed if not already
-    const progress = await Progress.findOneAndUpdate(
-      { studentId, courseId },
-      { 
-        $addToSet: { completedLessons: { lessonId } },
-        $set: { lastAccessed: new Date() }
-      },
-      { upsert: true, new: true }
-    );
-
-    // Recalculate progress percentage
-    const updatedProgress = await calculateAndUpdateProgress(studentId, courseId);
-
-    res.json({
-      success: true,
-      progress: updatedProgress
-    });
-  } catch (error) {
-    console.error('Complete lesson error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to mark lesson as completed' 
-    });
-  }
-});
-
-// Mark lesson as incomplete (remove from completed)
-router.post('/:courseId/uncomplete-lesson', auth, async (req, res) => {
-  try {
-    const { lessonId } = req.body;
-    const studentId = req.user.id;
-    const courseId = req.params.courseId;
-
-    // Validate input
-    if (!lessonId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Lesson ID is required' 
-      });
-    }
-
-    // Remove lesson from completed
-    await Progress.findOneAndUpdate(
-      { studentId, courseId },
-      { 
-        $pull: { completedLessons: { lessonId } },
-        $set: { lastAccessed: new Date() }
-      }
-    );
-
-    // Recalculate progress percentage
-    const updatedProgress = await calculateAndUpdateProgress(studentId, courseId);
-
-    res.json({
-      success: true,
-      progress: updatedProgress
-    });
-  } catch (error) {
-    console.error('Uncomplete lesson error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update lesson progress' 
-    });
-  }
-});
-
-// Get course progress
+// GET /api/progress/:courseId - Get progress for a specific course
 router.get('/:courseId', auth, async (req, res) => {
   try {
-    const progress = await Progress.findOne({
+    console.log('📊 Fetching progress for course:', req.params.courseId);
+    console.log('👤 User ID:', req.user.id);
+
+    let progress = await Progress.findOne({
       studentId: req.user.id,
       courseId: req.params.courseId
     });
 
     if (!progress) {
-      return res.json({
-        success: true,
-        progress: {
-          progressPercentage: 0,
-          completedLessons: [],
-          totalTimeSpent: 0,
-          lastAccessed: new Date()
-        }
+      console.log('No progress found, creating default progress');
+      // Create default progress if none exists
+      progress = new Progress({
+        studentId: req.user.id,
+        courseId: req.params.courseId,
+        progressPercentage: 0,
+        completedLessons: [],
+        totalTimeSpent: 0,
+        lastAccessed: new Date()
       });
+      await progress.save();
     }
 
+    console.log('✅ Progress found:', progress.progressPercentage + '%');
     res.json({
-      success: true,
-      progress
+      progress: progress,
+      message: 'Progress retrieved successfully'
     });
+
   } catch (error) {
-    console.error('Get progress error:', error);
+    console.error('❌ Error fetching progress:', error);
     res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch progress' 
+      message: 'Failed to fetch progress', 
+      error: error.message 
     });
   }
 });
 
-// Update time spent on course
-router.post('/:courseId/update-time', auth, async (req, res) => {
-  try {
-    const { timeSpent } = req.body; // in minutes
-    const studentId = req.user.id;
-    const courseId = req.params.courseId;
 
-    // Validate input
-    if (!timeSpent || timeSpent <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Valid time spent is required' 
+// POST /api/progress/:courseId/complete-lesson - Mark lesson as complete
+router.post('/:courseId/complete-lesson', auth, async (req, res) => {
+  try {
+    const { lessonId } = req.body;
+    console.log('✅ Marking lesson complete:', { lessonId, courseId: req.params.courseId, userId: req.user.id });
+    
+    let progress = await Progress.findOne({
+      studentId: req.user.id,
+      courseId: req.params.courseId
+    });
+
+    if (!progress) {
+      console.log('Creating new progress record');
+      progress = new Progress({
+        studentId: req.user.id,
+        courseId: req.params.courseId,
+        progressPercentage: 0,
+        completedLessons: [],
+        totalTimeSpent: 0
       });
     }
 
-    await Progress.findOneAndUpdate(
-      { studentId, courseId },
-      { 
-        $inc: { totalTimeSpent: timeSpent },
-        $set: { lastAccessed: new Date() }
-      },
-      { upsert: true, new: true }
+    // Check if lesson is already completed
+    const isAlreadyCompleted = progress.completedLessons.some(
+      lesson => lesson.lessonId.toString() === lessonId
     );
 
-    res.json({
-      success: true,
-      message: 'Time updated successfully'
-    });
+    if (!isAlreadyCompleted) {
+      console.log('Adding lesson to completed lessons');
+      
+      // ✅ FIX: Add the lesson to completedLessons
+      progress.completedLessons.push({
+        lessonId: lessonId,
+        completedAt: new Date()
+      });
+      
+      // ✅ FIX: SAVE the progress first before calculating
+      await progress.save();
+      console.log('✅ Progress saved with new completed lesson');
+      
+      // ✅ FIX: Then calculate and update progress
+      const updatedProgress = await calculateAndUpdateProgress(req.user.id, req.params.courseId);
+      
+      console.log('✅ Lesson marked as complete. Progress:', updatedProgress.progressPercentage + '%');
+      console.log('✅ Completed lessons count:', updatedProgress.completedLessons.length);
+      
+      res.json({
+        progress: updatedProgress,
+        message: 'Lesson marked as complete'
+      });
+    } else {
+      console.log('Lesson already completed');
+      res.json({
+        progress: progress,
+        message: 'Lesson was already completed'
+      });
+    }
+
   } catch (error) {
-    console.error('Update time error:', error);
+    console.error('❌ Error completing lesson:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update time' 
+      message: 'Failed to mark lesson complete', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// POST /api/progress/:courseId/uncomplete-lesson - Mark lesson as incomplete
+router.post('/:courseId/uncomplete-lesson', auth, async (req, res) => {
+  try {
+    const { lessonId } = req.body;
+    
+    const progress = await Progress.findOne({
+      studentId: req.user.id,
+      courseId: req.params.courseId
+    });
+
+    if (progress) {
+      progress.completedLessons = progress.completedLessons.filter(
+        lesson => lesson.lessonId.toString() !== lessonId
+      );
+      
+      // Update progress percentage
+      await calculateAndUpdateProgress(req.user.id, req.params.courseId);
+      
+      progress.lastAccessed = new Date();
+      await progress.save();
+    }
+
+    res.json({
+      progress: progress || {},
+      message: 'Lesson marked as incomplete'
+    });
+
+  } catch (error) {
+    console.error('Error uncompleting lesson:', error);
+    res.status(500).json({ 
+      message: 'Failed to mark lesson incomplete', 
+      error: error.message 
     });
   }
 });

@@ -1,0 +1,1157 @@
+// client/src/components/MyCourses/InstructorCourses.jsx
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  Row,
+  Col,
+  Card,
+  Button,
+  Badge,
+  Alert,
+  Modal,
+  Toast,
+  ToastContainer,
+  Pagination,
+  Spinner,
+  Container,
+  Form,
+  Collapse
+} from "react-bootstrap";
+import axios from "axios";
+
+const InstructorCourses = ({ error, setError }) => {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showShareToast, setShowShareToast] = useState(false);
+  const [copiedCourseTitle, setCopiedCourseTitle] = useState("");
+  
+  // Curriculum editing states
+  const [showCourseBuilder, setShowCourseBuilder] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [savingCurriculum, setSavingCurriculum] = useState(false);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    total: 0,
+    limit: 6
+  });
+
+  // Default thumbnails for fallback
+  const defaultThumbnails = {
+    'web-dev': 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=225&fit=crop',
+    'data-science': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=225&fit=crop',
+    'mobile-dev': 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=225&fit=crop',
+    'design': 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&h=225&fit=crop',
+    'business': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=225&fit=crop',
+    'marketing': 'https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?w=400&h=225&fit=crop',
+    'music': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=225&fit=crop',
+    'photography': 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=400&h=225&fit=crop',
+    'default': 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?w=400&h=225&fit=crop'
+  };
+
+  useEffect(() => {
+    fetchMyCourses();
+  }, [pagination.currentPage]);
+
+  const fetchMyCourses = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+
+      const response = await axios.get(
+        `http://localhost:5000/api/courses/instructor/my-courses?page=${pagination.currentPage}&limit=${pagination.limit}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      // Handle both response formats
+      if (response.data.courses) {
+        // Response has pagination structure
+        setCourses(response.data.courses || []);
+        setPagination({
+          currentPage: response.data.currentPage || 1,
+          totalPages: response.data.totalPages || 1,
+          total: response.data.total || 0,
+          limit: pagination.limit
+        });
+      } else {
+        // Response is just an array of courses
+        const allCourses = response.data;
+        const startIndex = (pagination.currentPage - 1) * pagination.limit;
+        const endIndex = startIndex + pagination.limit;
+        const paginatedCourses = allCourses.slice(startIndex, endIndex);
+        
+        setCourses(paginatedCourses);
+        setPagination(prev => ({
+          ...prev,
+          total: allCourses.length,
+          totalPages: Math.ceil(allCourses.length / pagination.limit)
+        }));
+      }
+    } catch (err) {
+      console.error("❌ Fetch courses error:", err);
+      setError(err.response?.data?.message || "Failed to fetch your courses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const handlePublishToggle = async (courseId, currentStatus) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(
+        `http://localhost:5000/api/courses/${courseId}`,
+        { isPublished: !currentStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update local state
+      setCourses(
+        courses.map((course) =>
+          course._id === courseId
+            ? { ...course, isPublished: !currentStatus }
+            : course
+        )
+      );
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update course");
+    }
+  };
+
+  const handleDeleteClick = (course) => {
+    setCourseToDelete(course);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!courseToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(
+        `http://localhost:5000/api/courses/${courseToDelete._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setCourses(courses.filter((c) => c._id !== courseToDelete._id));
+      setShowDeleteModal(false);
+      setCourseToDelete(null);
+      
+      // Refresh the courses list
+      fetchMyCourses();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete course");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleShareCourse = async (course) => {
+    try {
+      const courseUrl = `${window.location.origin}/courses/${course._id}`;
+      
+      if (navigator.share) {
+        await navigator.share({
+          title: course.title,
+          text: course.description,
+          url: courseUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(courseUrl);
+        setCopiedCourseTitle(course.title);
+        setShowShareToast(true);
+      }
+    } catch (err) {
+      console.error('Error sharing course:', err);
+      try {
+        const courseUrl = `${window.location.origin}/courses/${course._id}`;
+        await navigator.clipboard.writeText(courseUrl);
+        setCopiedCourseTitle(course.title);
+        setShowShareToast(true);
+      } catch (clipboardErr) {
+        setError('Failed to share course link');
+      }
+    }
+  };
+
+  // ADD THIS MISSING FUNCTION - Curriculum editing handler
+  const handleEditCurriculum = (course) => {
+    console.log("Editing curriculum for course:", course);
+    setEditingCourse(course);
+    setShowCourseBuilder(true);
+  };
+
+  const handleSaveCurriculum = async (curriculumData) => {
+    if (!editingCourse) return;
+    
+    setSavingCurriculum(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Validate curriculum data before sending
+      const validatedCurriculum = curriculumData.curriculum.map((section, sectionIndex) => ({
+        ...section,
+        order: sectionIndex,
+        lessons: (section.lessons || []).map((lesson, lessonIndex) => ({
+          ...lesson,
+          order: lessonIndex,
+          duration: parseInt(lesson.duration) || 0,
+          // Ensure videoId is clean
+          videoId: lesson.videoId ? lesson.videoId.trim() : ''
+        }))
+      }));
+
+      const response = await axios.put(
+        `http://localhost:5000/api/courses/${editingCourse._id}/curriculum`,
+        { curriculum: validatedCurriculum },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+      
+      console.log('✅ Save response:', response.data);
+      
+      if (response.data.success) {
+        setShowCourseBuilder(false);
+        setEditingCourse(null);
+        fetchMyCourses();
+        setError('');
+      } else {
+        setError('Failed to save: ' + (response.data.message || 'Unknown error'));
+      }
+      
+    } catch (error) {
+      console.error('❌ Save error:', error);
+      const errorMessage = error.response?.data?.message || error.message;
+      setError('Failed to save curriculum: ' + errorMessage);
+    } finally {
+      setSavingCurriculum(false);
+    }
+  };
+
+  const handleCloseCourseBuilder = () => {
+    if (savingCurriculum) return; // Prevent closing while saving
+    
+    setShowCourseBuilder(false);
+    setEditingCourse(null);
+  };
+
+  const getCategoryDisplayName = (category) => {
+    const categoryMap = {
+      'web-dev': 'Web Development',
+      'data-science': 'Data Science',
+      'mobile-dev': 'Mobile Development',
+      'design': 'Design',
+      'business': 'Business',
+      'marketing': 'Marketing',
+      'music': 'Music',
+      'photography': 'Photography'
+    };
+    return categoryMap[category] || category;
+  };
+
+  // FIXED CourseBuilder Component
+  const CourseBuilder = ({ course, onSave, onClose, saving }) => {
+    const [curriculum, setCurriculum] = useState([]);
+    const [localSaving, setLocalSaving] = useState(false);
+    const [expandedSections, setExpandedSections] = useState(new Set());
+      const [activeTab, setActiveTab] = useState('existing'); // 'existing' or 'new'
+
+
+    // Initialize curriculum when course changes
+    useEffect(() => {
+      if (course?.curriculum && Array.isArray(course.curriculum)) {
+        const initializedCurriculum = course.curriculum.map((section, sectionIndex) => ({
+          ...section,
+          _id: section._id || `section-${Date.now()}-${sectionIndex}`,
+          order: sectionIndex,
+          lessons: (section.lessons || []).map((lesson, lessonIndex) => ({
+            ...lesson,
+            _id: lesson._id || `lesson-${Date.now()}-${sectionIndex}-${lessonIndex}`,
+            order: lessonIndex,
+            duration: parseInt(lesson.duration) || 0,
+            videoId: lesson.videoId || '',
+            videoType: lesson.videoType || 'youtube',
+            description: lesson.description || '',
+            title: lesson.title || 'New Lesson'
+          }))
+        }));
+        setCurriculum(initializedCurriculum);
+        
+        // Expand all sections by default
+        const sectionIds = new Set(initializedCurriculum.map(section => section._id));
+        setExpandedSections(sectionIds);
+      } else {
+        setCurriculum([]);
+        setExpandedSections(new Set());
+      }
+    }, [course]);
+
+    const toggleSection = (sectionId) => {
+      const newExpanded = new Set(expandedSections);
+      if (newExpanded.has(sectionId)) {
+        newExpanded.delete(sectionId);
+      } else {
+        newExpanded.add(sectionId);
+      }
+      setExpandedSections(newExpanded);
+    };
+
+    const addSection = () => {
+      const newSection = {
+        _id: `section-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: 'New Section',
+        description: '',
+        order: curriculum.length,
+        lessons: []
+      };
+      const newCurriculum = [...curriculum, newSection];
+      setCurriculum(newCurriculum);
+      
+      // Expand the new section
+      setExpandedSections(prev => new Set([...prev, newSection._id]));
+    };
+
+    const updateSection = (sectionId, field, value) => {
+      setCurriculum(curriculum.map(section => 
+        section._id === sectionId ? { ...section, [field]: value } : section
+      ));
+    };
+
+    const addLesson = (sectionId) => {
+      const newLesson = {
+        _id: `lesson-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: 'New Lesson',
+        videoType: 'youtube',
+        videoId: '',
+        duration: 5,
+        description: '',
+        order: 0
+      };
+
+      setCurriculum(curriculum.map(section => {
+        if (section._id === sectionId) {
+          const currentLessons = section.lessons || [];
+          const updatedLessons = [...currentLessons, {
+            ...newLesson,
+            order: currentLessons.length
+          }];
+          return { ...section, lessons: updatedLessons };
+        }
+        return section;
+      }));
+    };
+
+    const updateLesson = (sectionId, lessonId, field, value) => {
+      setCurriculum(curriculum.map(section => {
+        if (section._id === sectionId) {
+          const updatedLessons = section.lessons.map(lesson =>
+            lesson._id === lessonId ? { ...lesson, [field]: value } : lesson
+          );
+          return { ...section, lessons: updatedLessons };
+        }
+        return section;
+      }));
+    };
+
+    const deleteSection = (sectionId) => {
+      const newCurriculum = curriculum.filter(section => section._id !== sectionId)
+        .map((section, index) => ({ ...section, order: index }));
+      setCurriculum(newCurriculum);
+      
+      // Remove from expanded sections
+      setExpandedSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+      });
+    };
+
+    const deleteLesson = (sectionId, lessonId) => {
+      setCurriculum(curriculum.map(section => {
+        if (section._id === sectionId) {
+          const filteredLessons = section.lessons.filter(lesson => lesson._id !== lessonId)
+            .map((lesson, index) => ({ ...lesson, order: index }));
+          return { ...section, lessons: filteredLessons };
+        }
+        return section;
+      }));
+    };
+
+    const moveSection = (sectionId, direction) => {
+      const index = curriculum.findIndex(s => s._id === sectionId);
+      if ((direction === 'up' && index === 0) || (direction === 'down' && index === curriculum.length - 1)) {
+        return;
+      }
+
+      const newCurriculum = [...curriculum];
+      const newIndex = direction === 'up' ? index - 1 : index + 1;
+      
+      [newCurriculum[index], newCurriculum[newIndex]] = [newCurriculum[newIndex], newCurriculum[index]];
+      
+      // Update orders
+      newCurriculum.forEach((section, idx) => {
+        section.order = idx;
+      });
+      
+      setCurriculum(newCurriculum);
+    };
+
+    const moveLesson = (sectionId, lessonId, direction) => {
+      setCurriculum(curriculum.map(section => {
+        if (section._id === sectionId) {
+          const lessons = [...section.lessons];
+          const index = lessons.findIndex(l => l._id === lessonId);
+          
+          if ((direction === 'up' && index === 0) || (direction === 'down' && index === lessons.length - 1)) {
+            return section;
+          }
+
+          const newIndex = direction === 'up' ? index - 1 : index + 1;
+          [lessons[index], lessons[newIndex]] = [lessons[newIndex], lessons[index]];
+          
+          // Update orders
+          lessons.forEach((lesson, idx) => {
+            lesson.order = idx;
+          });
+          
+          return { ...section, lessons };
+        }
+        return section;
+      }));
+    };
+
+    const validateCurriculum = () => {
+      for (const section of curriculum) {
+        if (!section.title.trim()) {
+          return `Section ${section.order + 1} needs a title`;
+        }
+        
+        for (const lesson of section.lessons || []) {
+          if (!lesson.title.trim()) {
+            return `Lesson in section "${section.title}" needs a title`;
+          }
+          if (!lesson.duration || lesson.duration < 1) {
+            return `Lesson "${lesson.title}" needs a valid duration`;
+          }
+          if (lesson.videoType === 'youtube' && !lesson.videoId.trim()) {
+            return `Lesson "${lesson.title}" needs a YouTube video ID`;
+          }
+        }
+      }
+      return null;
+    };
+
+    const handleSave = async () => {
+      const validationError = validateCurriculum();
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+
+      setLocalSaving(true);
+      try {
+        await onSave({ curriculum });
+      } finally {
+        setLocalSaving(false);
+      }
+    };
+
+    const isSaveDisabled = curriculum.length === 0 || saving || localSaving;
+
+    // YouTube Preview Component - FIXED
+// YouTube Preview Component - IMPROVED
+const YouTubePreview = ({ videoId, uniqueKey }) => {
+  if (!videoId) return null;
+
+  // Clean video ID - extract from URL if full URL is provided
+  const cleanVideoId = () => {
+    if (!videoId) return '';
+    
+    // Handle different YouTube URL formats
+    if (videoId.includes('youtube.com/watch?v=')) {
+      return videoId.split('v=')[1]?.split('&')[0] || videoId;
+    } else if (videoId.includes('youtu.be/')) {
+      return videoId.split('youtu.be/')[1]?.split('?')[0] || videoId;
+    } else if (videoId.includes('youtube.com/embed/')) {
+      return videoId.split('embed/')[1]?.split('?')[0] || videoId;
+    }
+    // If it's already just an ID, return as is
+    return videoId;
+  };
+
+  const cleanedId = cleanVideoId();
+
+  if (!cleanedId) {
+    return (
+      <Alert variant="warning" className="mt-2">
+        <i className="bi bi-exclamation-triangle me-2"></i>
+        Invalid YouTube video ID
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <Form.Label>Video Preview:</Form.Label>
+      <div className="ratio ratio-16x9">
+        <iframe
+          key={`yt-${uniqueKey}-${cleanedId}`}
+          src={`https://www.youtube.com/embed/${cleanedId}?rel=0`}
+          title="YouTube video preview"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ 
+            border: '1px solid #dee2e6', 
+            borderRadius: '0.375rem',
+            backgroundColor: '#f8f9fa'
+          }}
+        />
+      </div>
+      <Form.Text className="text-muted">
+        Preview of: {cleanedId}
+      </Form.Text>
+    </div>
+  );
+};
+
+    return (
+      <Container fluid>
+        <Row>
+          <Col>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <div>
+                <h4>Course Curriculum Builder</h4>
+                <p className="text-muted mb-0">Organize your course content into sections and lessons</p>
+              </div>
+              <Button onClick={addSection} variant="primary" disabled={saving}>
+                <i className="bi bi-plus-circle me-2"></i>
+                Add Section
+              </Button>
+            </div>
+
+            {curriculum.length === 0 && (
+              <Alert variant="info" className="text-center">
+                <i className="bi bi-info-circle me-2"></i>
+                Start by adding sections to organize your course content. Each section can contain multiple lessons.
+              </Alert>
+            )}
+
+            {curriculum.map((section, sectionIndex) => (
+              <Card key={section._id} className="mb-3 border">
+                <Card.Header 
+                  className="bg-light cursor-pointer"
+                  onClick={() => toggleSection(section._id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex align-items-center gap-3">
+                      <Button
+                        variant="link"
+                        className="p-0 text-dark"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSection(section._id);
+                        }}
+                      >
+                        <i className={`bi bi-chevron-${expandedSections.has(section._id) ? 'down' : 'right'}`}></i>
+                      </Button>
+                      <div>
+                        <h6 className="mb-1">{section.title || 'Untitled Section'}</h6>
+                        <small className="text-muted">
+                          {section.lessons?.length || 0} lessons • 
+                          {section.description ? ` ${section.description}` : ' No description'}
+                        </small>
+                      </div>
+                    </div>
+                    <div className="d-flex gap-2 align-items-center">
+                      <Badge bg="secondary">{section.lessons?.length || 0} lessons</Badge>
+                      <div className="btn-group">
+                        <Button 
+                          variant="outline-secondary" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveSection(section._id, 'up');
+                          }}
+                          disabled={sectionIndex === 0 || saving}
+                          title="Move up"
+                        >
+                          <i className="bi bi-arrow-up"></i>
+                        </Button>
+                        <Button 
+                          variant="outline-secondary" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveSection(section._id, 'down');
+                          }}
+                          disabled={sectionIndex === curriculum.length - 1 || saving}
+                          title="Move down"
+                        >
+                          <i className="bi bi-arrow-down"></i>
+                        </Button>
+                      </div>
+                      <Button 
+                        variant="outline-danger" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSection(section._id);
+                        }}
+                        disabled={saving}
+                        title="Delete section"
+                      >
+                        <i className="bi bi-trash"></i>
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Header>
+                
+                <Collapse in={expandedSections.has(section._id)}>
+                  <div>
+                    <Card.Body>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Section Title *</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={section.title}
+                          onChange={(e) => updateSection(section._id, 'title', e.target.value)}
+                          placeholder="Section Title"
+                          required
+                          disabled={saving}
+                        />
+                      </Form.Group>
+
+                      <Form.Group className="mb-3">
+                        <Form.Label>Section Description</Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={2}
+                          value={section.description}
+                          onChange={(e) => updateSection(section._id, 'description', e.target.value)}
+                          placeholder="What will students learn in this section?"
+                          disabled={saving}
+                        />
+                      </Form.Group>
+
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h6 className="mb-0">Lessons in this section</h6>
+                        <Button 
+                          size="sm" 
+                          variant="primary"
+                          onClick={() => addLesson(section._id)}
+                          disabled={saving}
+                        >
+                          <i className="bi bi-plus me-1"></i>
+                          Add Lesson
+                        </Button>
+                      </div>
+
+                      {!section.lessons || section.lessons.length === 0 ? (
+                        <Alert variant="light" className="text-center mb-0">
+                          <i className="bi bi-journals me-2"></i>
+                          No lessons yet. Add your first lesson to this section.
+                        </Alert>
+                      ) : (
+                        section.lessons.map((lesson, lessonIndex) => (
+                          <div key={lesson._id} className="lesson-item border rounded p-3 mb-3">
+                            <Row className="align-items-center mb-3">
+                              <Col md={1}>
+                                <div className="d-flex flex-column gap-1">
+                                  <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => moveLesson(section._id, lesson._id, 'up')}
+                                    disabled={lessonIndex === 0 || saving}
+                                    title="Move up"
+                                  >
+                                    <i className="bi bi-arrow-up"></i>
+                                  </Button>
+                                  <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => moveLesson(section._id, lesson._id, 'down')}
+                                    disabled={lessonIndex === section.lessons.length - 1 || saving}
+                                    title="Move down"
+                                  >
+                                    <i className="bi bi-arrow-down"></i>
+                                  </Button>
+                                </div>
+                              </Col>
+                              <Col md={7}>
+                                <Form.Group className="mb-2">
+                                  <Form.Label>Lesson Title *</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    value={lesson.title}
+                                    onChange={(e) => updateLesson(section._id, lesson._id, 'title', e.target.value)}
+                                    placeholder="Lesson title"
+                                    required
+                                    disabled={saving}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={2}>
+                                <Form.Group className="mb-2">
+                                  <Form.Label>Duration (min) *</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    min="1"
+                                    max="600"
+                                    value={lesson.duration}
+                                    onChange={(e) => updateLesson(section._id, lesson._id, 'duration', parseInt(e.target.value) || 0)}
+                                    placeholder="Duration"
+                                    required
+                                    disabled={saving}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={2}>
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() => deleteLesson(section._id, lesson._id)}
+                                  className="w-100"
+                                  disabled={saving}
+                                  title="Delete lesson"
+                                >
+                                  <i className="bi bi-trash"></i>
+                                </Button>
+                              </Col>
+                            </Row>
+                            
+                            <Row>
+                              <Col md={6}>
+                                <Form.Group className="mb-2">
+                                  <Form.Label>Video Type</Form.Label>
+                                  <Form.Select
+                                    value={lesson.videoType}
+                                    onChange={(e) => updateLesson(section._id, lesson._id, 'videoType', e.target.value)}
+                                    disabled={saving}
+                                  >
+                                    <option value="youtube">YouTube</option>
+                                    <option value="upload">Upload</option>
+                                    <option value="vimeo">Vimeo</option>
+                                  </Form.Select>
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                {lesson.videoType === 'youtube' && (
+                                  <Form.Group className="mb-2">
+                                    <Form.Label>YouTube Video ID *</Form.Label>
+                                    <Form.Control
+                                      type="text"
+                                      value={lesson.videoId}
+                                      onChange={(e) => updateLesson(section._id, lesson._id, 'videoId', e.target.value)}
+                                      placeholder="YouTube video ID or URL"
+                                      required
+                                      disabled={saving}
+                                    />
+                                    <Form.Text className="text-muted">
+                                      Enter video ID (dQw4w9WgXcQ) or full URL
+                                    </Form.Text>
+                                  </Form.Group>
+                                )}
+                                {lesson.videoType === 'vimeo' && (
+                                  <Form.Group className="mb-2">
+                                    <Form.Label>Vimeo Video ID *</Form.Label>
+                                    <Form.Control
+                                      type="text"
+                                      value={lesson.videoId}
+                                      onChange={(e) => updateLesson(section._id, lesson._id, 'videoId', e.target.value)}
+                                      placeholder="Vimeo video ID"
+                                      required
+                                      disabled={saving}
+                                    />
+                                  </Form.Group>
+                                )}
+                              </Col>
+                            </Row>
+
+                            <Form.Group className="mb-2">
+                              <Form.Label>Description</Form.Label>
+                              <Form.Control
+                                as="textarea"
+                                rows={2}
+                                value={lesson.description}
+                                onChange={(e) => updateLesson(section._id, lesson._id, 'description', e.target.value)}
+                                placeholder="Lesson description"
+                                disabled={saving}
+                              />
+                            </Form.Group>
+
+                            {lesson.videoType === 'youtube' && lesson.videoId && (
+                              <YouTubePreview 
+                                videoId={lesson.videoId} 
+                                uniqueKey={`${section._id}-${lesson._id}`}
+                              />
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </Card.Body>
+                  </div>
+                </Collapse>
+              </Card>
+            ))}
+
+            <div className="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+              <Button 
+                variant="outline-secondary" 
+                onClick={onClose}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              
+              <div className="d-flex gap-2">
+                <Button 
+                  onClick={addSection} 
+                  variant="outline-primary"
+                  disabled={saving}
+                >
+                  <i className="bi bi-plus-circle me-2"></i>
+                  Add Another Section
+                </Button>
+                <Button 
+                  onClick={handleSave} 
+                  size="lg" 
+                  variant="success" 
+                  disabled={isSaveDisabled}
+                >
+                  {saving || localSaving ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-check-circle me-2"></i>
+                      Save Curriculum
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Col>
+        </Row>
+      </Container>
+    );
+  };
+  
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    let items = [];
+    for (let number = 1; number <= pagination.totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === pagination.currentPage}
+          onClick={() => handlePageChange(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <div className="d-flex justify-content-center mt-4">
+        <Pagination>
+          <Pagination.Prev
+            disabled={pagination.currentPage === 1}
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+          />
+          {items}
+          <Pagination.Next
+            disabled={pagination.currentPage === pagination.totalPages}
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+          />
+        </Pagination>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center py-5">
+        <Spinner animation="border" variant="primary" />
+        <p className="mt-3 text-muted">Loading your courses...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Header */}
+      <Row className="mb-4">
+        <Col md={8}>
+          <h1 className="h2 fw-bold">My Courses</h1>
+          <p className="text-muted">Manage and track your course content</p>
+        </Col>
+        <Col md={4} className="text-md-end mt-3 mt-md-0">
+          <Button
+            as={Link}
+            to="/dashboard/create-course"
+            variant="primary"
+            className="px-4"
+          >
+            <i className="bi bi-plus-circle me-2"></i>
+            Create New Course
+          </Button>
+        </Col>
+      </Row>
+
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
+      {courses.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <Card.Body className="text-center py-5">
+            <div className="display-1 text-muted mb-3">📚</div>
+            <h4 className="mb-3">No courses created yet</h4>
+            <p className="text-muted mb-4">
+              Start sharing your knowledge by creating your first course
+            </p>
+            <Button
+              as={Link}
+              to="/dashboard/create-course"
+              variant="primary"
+              size="lg"
+            >
+              Create Your First Course
+            </Button>
+          </Card.Body>
+        </Card>
+      ) : (
+        <>
+          <Row>
+            {courses.map((course) => (
+              <Col key={course._id} lg={6} xl={4} className="mb-4">
+                <Card className="h-100 shadow-sm">
+                  <div className="position-relative">
+                    <Card.Img 
+                      variant="top"
+                      src={
+                        course.thumbnail && course.thumbnail.trim() !== '' 
+                          ? course.thumbnail 
+                          : (defaultThumbnails[course.category] || defaultThumbnails.default)
+                      }
+                      alt={course.title}
+                      style={{ height: '200px', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = defaultThumbnails[course.category] || defaultThumbnails.default;
+                      }}
+                    />
+                    <Badge
+                      bg={course.isPublished ? "success" : "secondary"}
+                      className="position-absolute top-0 end-0 m-2"
+                    >
+                      {course.isPublished ? "Published" : "Draft"}
+                    </Badge>
+                  </div>
+
+                  <Card.Body className="d-flex flex-column">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <Badge bg="primary" className="mb-1">
+                        {getCategoryDisplayName(course.category)}
+                      </Badge>
+                      <Badge bg="outline-secondary" text="dark">
+                        {course.level}
+                      </Badge>
+                    </div>
+
+                    <Card.Title className="h5">{course.title}</Card.Title>
+                    <Card.Text className="text-muted flex-grow-1">
+                      {course.description.length > 100
+                        ? course.description.substring(0, 100) + "..."
+                        : course.description}
+                    </Card.Text>
+
+                    <div className="d-flex justify-content-between text-muted small mb-3">
+                      <span>
+                        <i className="bi bi-people me-1"></i>
+                        {course.studentsEnrolled?.length || 0}
+                      </span>
+                      <span>
+                        <i className="bi bi-star-fill text-warning me-1"></i>
+                        {course.averageRating || "0.0"}
+                      </span>
+                      <span>
+                        <i className="bi bi-currency-dollar me-1"></i>
+                        {course.price === 0 ? "Free" : `$${course.price}`}
+                      </span>
+                    </div>
+
+                    <div className="d-grid gap-2 d-md-flex">
+                      <Button
+                        variant={course.isPublished ? "outline-warning" : "outline-success"}
+                        size="sm"
+                        onClick={() => handlePublishToggle(course._id, course.isPublished)}
+                        className="flex-fill"
+                      >
+                        <i className={`bi bi-${course.isPublished ? "eye-slash" : "eye"} me-1`}></i>
+                        {course.isPublished ? "Unpublish" : "Publish"}
+                      </Button>
+
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        as={Link}
+                        to={`/dashboard/edit-course/${course._id}`}
+                        className="flex-fill"
+                      >
+                        <i className="bi bi-pencil me-1"></i>
+                        Edit
+                      </Button>
+
+                      <Button
+                        variant="outline-info"
+                        size="sm"
+                        onClick={() => handleEditCurriculum(course)}
+                        className="flex-fill"
+                      >
+                        <i className="bi bi-journals me-1"></i>
+                        Curriculum
+                      </Button>
+                    </div>
+
+                    <div className="d-grid gap-2 d-md-flex mt-2">
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => handleShareCourse(course)}
+                        className="flex-fill"
+                      >
+                        <i className="bi bi-share me-1"></i>
+                        Share
+                      </Button>
+
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => handleDeleteClick(course)}
+                        className="flex-fill"
+                      >
+                        <i className="bi bi-trash me-1"></i>
+                        Delete
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+          
+          {/* Pagination */}
+          {renderPagination()}
+        </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        show={showDeleteModal}
+        onHide={() => !deleteLoading && setShowDeleteModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Course</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Are you sure you want to delete{" "}
+            <strong>{courseToDelete?.title}</strong>?
+          </p>
+          <p className="text-danger mb-0">This action cannot be undone.</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowDeleteModal(false)}
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDeleteConfirm}
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Deleting...
+              </>
+            ) : (
+              "Delete Course"
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Course Builder Modal */}
+      <Modal 
+        show={showCourseBuilder} 
+        onHide={handleCloseCourseBuilder}
+        size="xl"
+        scrollable
+        backdrop={savingCurriculum ? 'static' : true}
+      >
+        <Modal.Header closeButton={!savingCurriculum} className="bg-light">
+          <Modal.Title>
+            <i className="bi bi-journals me-2"></i>
+            Course Curriculum: {editingCourse?.title}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-0">
+          <CourseBuilder 
+            course={editingCourse} 
+            onSave={handleSaveCurriculum}
+            onClose={handleCloseCourseBuilder}
+            saving={savingCurriculum}
+          />
+        </Modal.Body>
+      </Modal>
+
+      {/* Share Success Toast */}
+      <ToastContainer position="top-end" className="p-3">
+        <Toast 
+          show={showShareToast} 
+          onClose={() => setShowShareToast(false)}
+          delay={4000}
+          autohide
+          bg="success"
+        >
+          <Toast.Header className="bg-success text-white">
+            <i className="bi bi-check-circle-fill me-2"></i>
+            <strong className="me-auto text-white">Link Copied!</strong>
+          </Toast.Header>
+          <Toast.Body className="text-white">
+            Course link for "<strong>{copiedCourseTitle}</strong>" copied to clipboard!
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+    </>
+  );
+};
+
+export default InstructorCourses;

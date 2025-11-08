@@ -1,0 +1,280 @@
+/* LessonPage.css */
+.lesson-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.lesson-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.lesson-header h1 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.lesson-header p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.youtube-player {
+  position: relative;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.youtube-iframe-container {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+}
+
+.youtube-iframe-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 8px;
+}
+
+.quiz-section {
+  margin-top: 3rem;
+}
+
+.quiz-prompt {
+  text-align: center;
+  padding: 2rem;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  color: #856404;
+  margin-top: 2rem;
+}
+
+/* Quiz Styles */
+.quiz-container {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.quiz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.quiz-info {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.question-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+}
+
+.question-points {
+  color: #28a745;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.options-list {
+  margin-top: 1.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border: 2px solid #e9ecef;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.option:hover {
+  border-color: #007bff;
+  background: #f8f9ff;
+}
+
+.option.selected {
+  border-color: #007bff;
+  background: #e7f1ff;
+}
+
+.option-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #6c757d;
+  color: white;
+  margin-right: 1rem;
+  font-weight: bold;
+}
+
+.option.selected .option-marker {
+  background: #007bff;
+}
+
+.text-input-answer {
+  margin-top: 1rem;
+}
+
+.answer-textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.answer-textarea:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.case-sensitive-note {
+  color: #dc3545;
+  font-style: italic;
+}
+
+.quiz-navigation {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.submit-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.submit-btn:hover {
+  background: #218838;
+}
+
+.progress-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dee2e6;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.progress-dot.active {
+  background: #007bff;
+  transform: scale(1.2);
+}
+
+.progress-dot.answered {
+  background: #28a745;
+}
+
+.quiz-results {
+  text-align: center;
+}
+
+.result-card {
+  padding: 2rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.result-card.passed {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.result-card.failed {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.answers-review {
+  text-align: left;
+  margin-top: 2rem;
+}
+
+.question-review {
+  background: white;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  border-left: 4px solid #dee2e6;
+}
+
+.correct {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.incorrect {
+  color: #dc3545;
+}
+
+.explanation {
+  font-style: italic;
+  color: #6c757d;
+  margin-top: 0.5rem;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+}
+
+button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}

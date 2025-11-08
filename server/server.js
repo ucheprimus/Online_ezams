@@ -8,6 +8,7 @@ const paymentRoutes = require('./routes/payments');
 const userRoutes = require('./routes/users');
 const progressRoutes = require('./routes/progress');
 
+
 const app = express();
 
 // Connect to database
@@ -40,11 +41,20 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
+
+
+
 // Middleware for webhooks (must be before express.json())
 app.use('/api/payments/webhook', express.raw({type: 'application/json'}));
 
 // Regular middleware for other routes
 app.use(express.json());
+
+app.use('/api/lessons', require('./routes/lessons'));
+app.use('/api/quizzes', require('./routes/quizzes'));
+
+// server/server.js - Add this line
+app.use('/api/progress', require('./routes/progress'));
 
 // Routes
 app.use('/api/auth', authRoutes);

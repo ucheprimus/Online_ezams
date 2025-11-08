@@ -24,7 +24,8 @@ const DashboardLayout = () => {
     { path: '/dashboard/my-courses', icon: '📚', label: 'My Courses', badge: '5' },
     { path: '/dashboard/create-course', icon: '➕', label: 'Create Course', badge: null },
     { path: '/dashboard/students', icon: '👥', label: 'Students', badge: '12' },
-    { path: '/dashboard/analytics', icon: '📈', label: 'Analytics', badge: null },
+      { path: '/dashboard/quiz-analytics', icon: '📊', label: 'Analytics', badge: null },
+
     { path: '/dashboard/messages', icon: '💬', label: 'Messages', badge: '3' }
   ];
 
