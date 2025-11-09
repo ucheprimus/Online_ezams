@@ -34,50 +34,50 @@ const PaymentSuccess = () => {
     processPaymentSuccess();
   }, [paymentIntentId, courseId, user]);
 
-  const processPaymentSuccess = async () => {
-    try {
-      setLoading(true);
-      setError('');
+const processPaymentSuccess = async () => {
+  try {
+    setLoading(true);
+    setError('');
 
-      // If we have a payment intent ID, confirm the enrollment
-      if (paymentIntentId && courseId) {
-        const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    
+    // Always try to confirm enrollment if we have a course ID
+    if (courseId) {
+      const response = await axios.post(
+        'http://localhost:5000/api/payments/confirm-enrollment',
+        { 
+          courseId,
+          paymentIntentId: paymentIntentId || 'free_course'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setEnrollmentStatus('success');
         
-        const response = await axios.post(
-          'http://localhost:5000/api/payments/confirm-enrollment',
-          { 
-            courseId,
-            paymentIntentId
-          },
+        // Fetch course details for display
+        const courseResponse = await axios.get(
+          `http://localhost:5000/api/courses/${courseId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-
-        if (response.data.success) {
-          setEnrollmentStatus('success');
-          
-          // Fetch course details for display
-          const courseResponse = await axios.get(
-            `http://localhost:5000/api/courses/${courseId}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          setCourse(courseResponse.data);
-        } else {
-          setEnrollmentStatus('failed');
-          setError(response.data.message || 'Enrollment failed');
-        }
+        setCourse(courseResponse.data);
       } else {
-        // Manual success case (free courses or direct navigation)
-        setEnrollmentStatus('success');
+        setEnrollmentStatus('failed');
+        setError(response.data.message || 'Enrollment failed');
       }
-
-    } catch (err) {
-      console.error('Payment success processing error:', err);
-      setEnrollmentStatus('failed');
-      setError(err.response?.data?.message || 'Failed to process enrollment');
-    } finally {
-      setLoading(false);
+    } else {
+      // No course ID - just show success
+      setEnrollmentStatus('success');
     }
-  };
+
+  } catch (err) {
+    console.error('Payment success processing error:', err);
+    setEnrollmentStatus('failed');
+    setError(err.response?.data?.message || 'Failed to process enrollment');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleStartLearning = () => {
     if (courseId) {

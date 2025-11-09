@@ -1,6 +1,6 @@
 // client/src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext.jsx'; // Added .jsx
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
@@ -15,8 +15,10 @@ import MyCourses from './pages/MyCourses';
 import EditCourse from './pages/EditCourse';
 import CourseDetail from './pages/CourseDetail';
 import Checkout from './pages/Checkout';
-import LearnCourse from './pages/LearnCourse'; // Make sure this is imported
+import LearnCourse from './pages/LearnCourse';
 import PaymentSuccess from './pages/PaymentSuccess';
+// CORRECTED IMPORT PATH:
+import AnalyticsDashboard from './components/Instructor/AnalyticsDashboard'; // Capital I
 
 // Layout wrapper for public pages (with Navbar)
 const PublicLayout = ({ children }) => (
@@ -46,7 +48,7 @@ function App() {
           {/* Payment Success Route */}
           <Route path="/payment-success" element={<PublicLayout><PaymentSuccess /></PublicLayout>} />
           
-          {/* Learn Course Route - ADD THIS ROUTE */}
+          {/* Learn Course Route */}
           <Route 
             path="/learn/:id" 
             element={
@@ -72,7 +74,8 @@ function App() {
             <Route path="create-course" element={<CreateCourse />} />
             <Route path="edit-course/:id" element={<EditCourse />} />
             <Route path="browse" element={<BrowseCourses />} />
-            {/* Remove the learn route from here since it's now at root level */}
+            {/* Analytics Route */}
+            <Route path="analytics" element={<AnalyticsDashboard />} />
           </Route>
 
           {/* Catch all route - 404 */}

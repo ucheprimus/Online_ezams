@@ -1,5 +1,6 @@
 // client/src/components/Instructor/CourseBuilder.jsx
 import { useState, useEffect } from "react";
+import VideoUpload from "./VideoUpload"; // ADD THIS IMPORT
 import {
   Container,
   Row,
@@ -54,6 +55,8 @@ export const CourseBuilder = ({ course, onSave }) => {
             duration: parseInt(lesson.duration) || 0,
             videoId: lesson.videoId || "",
             videoType: lesson.videoType || "youtube",
+              videoFile: lesson.videoFile || null, // ADD THIS
+
             description: lesson.description || "",
             title: lesson.title || "New Lesson",
             isPreview: lesson.isPreview || false,
@@ -702,16 +705,26 @@ export const CourseBuilder = ({ course, onSave }) => {
                                   : "Save"}
                               </Button>
 
-                            {/* In your lesson button section */}
-<Button
-  variant={lessonQuizzes[lesson._id] ? "warning" : "outline-primary"}
-  size="sm"
-  onClick={() => handleShowQuizModal(section, lesson)}
-  disabled={savingLesson[`${section._id}-${lesson._id}`]}
->
-  <i className="bi bi-patch-question me-1"></i>
-  {lessonQuizzes[lesson._id] ? 'Edit Quiz' : 'Add Quiz'}
-</Button>
+                              {/* In your lesson button section */}
+                              <Button
+                                variant={
+                                  lessonQuizzes[lesson._id]
+                                    ? "warning"
+                                    : "outline-primary"
+                                }
+                                size="sm"
+                                onClick={() =>
+                                  handleShowQuizModal(section, lesson)
+                                }
+                                disabled={
+                                  savingLesson[`${section._id}-${lesson._id}`]
+                                }
+                              >
+                                <i className="bi bi-patch-question me-1"></i>
+                                {lessonQuizzes[lesson._id]
+                                  ? "Edit Quiz"
+                                  : "Add Quiz"}
+                              </Button>
 
                               <Button
                                 variant="outline-danger"
@@ -784,48 +797,65 @@ export const CourseBuilder = ({ course, onSave }) => {
                             </Col>
                           </Row>
 
-                          {lesson.videoType === "youtube" && (
-                            <Form.Group className="mb-3">
-                              <Form.Label>YouTube Video ID or URL</Form.Label>
-                              <Form.Control
-                                type="text"
-                                value={lesson.videoId}
-                                onChange={(e) => {
-                                  const cleanId = extractYouTubeId(
-                                    e.target.value
-                                  );
-                                  updateLesson(
-                                    section._id,
-                                    lesson._id,
-                                    "videoId",
-                                    cleanId
-                                  );
-                                }}
-                                placeholder="dQw4w9WgXcQ or https://youtube.com/watch?v=..."
-                              />
-                              <Form.Text className="text-muted">
-                                Paste full YouTube URL or just the video ID
-                              </Form.Text>
-                              {lesson.videoId && (
-                                <div className="mt-3">
-                                  <div className="ratio ratio-16x9">
-                                    <iframe
-                                      src={`https://www.youtube.com/embed/${lesson.videoId}`}
-                                      title="YouTube video preview"
-                                      allowFullScreen
-                                      style={{
-                                        border: "1px solid #dee2e6",
-                                        borderRadius: "0.375rem",
-                                      }}
-                                    />
-                                  </div>
-                                  <small className="text-muted">
-                                    Preview: {lesson.videoId}
-                                  </small>
-                                </div>
-                              )}
-                            </Form.Group>
-                          )}
+                      {lesson.videoType === "youtube" && (
+  <Form.Group className="mb-3">
+    <Form.Label>YouTube Video ID or URL</Form.Label>
+    <Form.Control
+      type="text"
+      value={lesson.videoId}
+      onChange={(e) => {
+        const cleanId = extractYouTubeId(e.target.value);
+        updateLesson(section._id, lesson._id, "videoId", cleanId);
+      }}
+      placeholder="dQw4w9WgXcQ or https://youtube.com/watch?v=..."
+    />
+    <Form.Text className="text-muted">
+      Paste full YouTube URL or just the video ID
+    </Form.Text>
+    {lesson.videoId && (
+      <div className="mt-3">
+        <div className="ratio ratio-16x9">
+          <iframe
+            src={`https://www.youtube.com/embed/${lesson.videoId}`}
+            title="YouTube video preview"
+            allowFullScreen
+            style={{
+              border: "1px solid #dee2e6",
+              borderRadius: "0.375rem",
+            }}
+          />
+        </div>
+        <small className="text-muted">
+          Preview: {lesson.videoId}
+        </small>
+      </div>
+    )}
+  </Form.Group>
+)}
+
+{lesson.videoType === "upload" && (
+  <Form.Group className="mb-3">
+    <Form.Label>Upload Video</Form.Label>
+    <VideoUpload
+      sectionId={section._id}
+      lessonId={lesson._id}
+      courseId={course._id}
+      currentVideo={lesson.videoFile}
+      onVideoUploaded={(videoData) => {
+        updateLesson(section._id, lesson._id, {
+          videoFile: videoData,
+          videoId: videoData.url
+        });
+      }}
+      onVideoDeleted={() => {
+        updateLesson(section._id, lesson._id, {
+          videoFile: null,
+          videoId: ""
+        });
+      }}
+    />
+  </Form.Group>
+)}
 
                           <Form.Group className="mb-3">
                             <Form.Label>Description</Form.Label>

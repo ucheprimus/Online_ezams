@@ -13,11 +13,12 @@ import {
   Spinner,
   Accordion,
   ProgressBar,
-  Modal,
+  Nav,
 } from "react-bootstrap";
 import axios from "axios";
 import YouTubePlayer from "../components/YouTubePlayer";
 import EnhancedQuiz from "../components/EnhancedQuiz";
+import CourseComments from "../components/CourseComments";
 
 const LearnCourse = () => {
   const { id } = useParams();
@@ -33,6 +34,9 @@ const LearnCourse = () => {
   const [videoLoading, setVideoLoading] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizResults, setQuizResults] = useState(null);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState("content");
 
   useEffect(() => {
     if (!user) {
@@ -425,6 +429,109 @@ const handleQuizSubmit = async (answers, timeSpent) => {
     }
   };
 
+  // Render the tab content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "content":
+        return (
+          <>
+            <h5 className="fw-bold mb-3">Course Content</h5>
+            {course?.curriculum && course.curriculum.length > 0 ? (
+              <Accordion defaultActiveKey="0" flush>
+                {course.curriculum.map((section, sectionIndex) => (
+                  <Accordion.Item
+                    key={section._id || sectionIndex}
+                    eventKey={sectionIndex.toString()}
+                  >
+                    <Accordion.Header>
+                      <div className="d-flex justify-content-between align-items-center w-100 me-3">
+                        <span className="fw-medium">{section.title}</span>
+                        <Badge bg="secondary" className="ms-2">
+                          {section.lessons?.length || 0}
+                        </Badge>
+                      </div>
+                    </Accordion.Header>
+                    <Accordion.Body className="p-0">
+                      <div className="lessons-list">
+                        {section.lessons?.map((lesson, lessonIndex) => (
+                          <div
+                            key={lesson._id || lessonIndex}
+                            className={`lesson-item p-3 border-bottom cursor-pointer ${
+                              currentLesson?._id === lesson._id
+                                ? "bg-primary text-white"
+                                : ""
+                            } ${
+                              completedLessons.has(lesson._id)
+                                ? "completed-lesson"
+                                : ""
+                            }`}
+                            onClick={() => handleLessonSelect(lesson)}
+                          >
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div className="d-flex align-items-center">
+                                {completedLessons.has(lesson._id) ? (
+                                  <i className="bi bi-check-circle-fill text-success me-2"></i>
+                                ) : (
+                                  <i className="bi bi-play-circle me-2"></i>
+                                )}
+                                <span
+                                  className={
+                                    currentLesson?._id === lesson._id
+                                      ? "fw-bold"
+                                      : ""
+                                  }
+                                >
+                                  {lesson.title}
+                                </span>
+                              </div>
+                              <div className="text-muted small">
+                                {lesson.duration || "10"} min
+                                {lesson.quiz && (
+                                  <i className="bi bi-patch-question ms-1"></i>
+                                )}
+                              </div>
+                            </div>
+                            {lesson.description && (
+                              <small
+                                className={`d-block mt-1 ${
+                                  currentLesson?._id === lesson._id
+                                    ? "text-light"
+                                    : "text-muted"
+                                }`}
+                              >
+                                {lesson.description}
+                              </small>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </Accordion.Body>
+                  </Accordion.Item>
+                ))}
+              </Accordion>
+            ) : (
+              <Alert variant="info">
+                <i className="bi bi-info-circle me-2"></i>
+                No curriculum available for this course yet.
+              </Alert>
+            )}
+          </>
+        );
+      
+      case "comments":
+        return (
+          <CourseComments 
+            courseId={id} 
+            currentLesson={currentLesson} 
+            user={user} 
+          />
+        );
+      
+      default:
+        return null;
+    }
+  };
+
   if (loading) {
     return (
       <Container fluid className="learn-course-container px-3 px-md-4 py-4">
@@ -634,28 +741,26 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                 )}
 
                 {/* Quiz Prompt */}
-
-{/* Quiz Prompt - Show only if quiz exists and lesson isn't completed */}
-{currentQuiz && 
- !showQuiz && 
- !quizResults && 
- !completedLessons.has(currentLesson._id.toString()) && (
-  <Card className="border-0 shadow-sm">
-    <Card.Body className="text-center">
-      <h5>📝 Quiz Available</h5>
-      <p className="text-muted mb-3">
-        Complete the video to unlock the quiz and test your knowledge.
-      </p>
-      <Button 
-        variant="primary" 
-        onClick={() => setShowQuiz(true)}
-        disabled={!currentLesson}
-      >
-        Start Quiz
-      </Button>
-    </Card.Body>
-  </Card>
-)}
+                {currentQuiz && 
+                 !showQuiz && 
+                 !quizResults && 
+                 !completedLessons.has(currentLesson._id.toString()) && (
+                  <Card className="border-0 shadow-sm">
+                    <Card.Body className="text-center">
+                      <h5>📝 Quiz Available</h5>
+                      <p className="text-muted mb-3">
+                        Complete the video to unlock the quiz and test your knowledge.
+                      </p>
+                      <Button 
+                        variant="primary" 
+                        onClick={() => setShowQuiz(true)}
+                        disabled={!currentLesson}
+                      >
+                        Start Quiz
+                      </Button>
+                    </Card.Body>
+                  </Card>
+                )}
               </>
             ) : (
               <Card className="border-0 shadow-sm">
@@ -671,93 +776,44 @@ const handleQuizSubmit = async (answers, timeSpent) => {
           </div>
         </Col>
 
-        {/* Curriculum Sidebar */}
+        {/* Sidebar with Tabs */}
         <Col lg={4}>
           <div
-            className="curriculum-sidebar bg-light p-3 p-md-4"
+            className="sidebar-content bg-light p-3 p-md-4"
             style={{ height: "100vh", overflowY: "auto" }}
           >
-            <h5 className="fw-bold mb-3">Course Content</h5>
+            {/* Tabs Navigation */}
+            <Card className="border-0 shadow-sm mb-4">
+              <Card.Body className="p-0">
+                <Nav variant="pills" className="flex-row">
+                  <Nav.Item className="flex-fill">
+                    <Nav.Link 
+                      active={activeTab === "content"}
+                      onClick={() => setActiveTab("content")}
+                      className="text-center py-2"
+                    >
+                      <i className="bi bi-list-ul me-2"></i>
+                      Content
+                    </Nav.Link>
+                  </Nav.Item>
+                  <Nav.Item className="flex-fill">
+                    <Nav.Link 
+                      active={activeTab === "comments"}
+                      onClick={() => setActiveTab("comments")}
+                      className="text-center py-2"
+                    >
+                      <i className="bi bi-chat-dots me-2"></i>
+                      Comments
+                    </Nav.Link>
+                  </Nav.Item>
+                </Nav>
+              </Card.Body>
+            </Card>
 
-            {course?.curriculum && course.curriculum.length > 0 ? (
-              <Accordion defaultActiveKey="0" flush>
-                {course.curriculum.map((section, sectionIndex) => (
-                  <Accordion.Item
-                    key={section._id || sectionIndex}
-                    eventKey={sectionIndex.toString()}
-                  >
-                    <Accordion.Header>
-                      <div className="d-flex justify-content-between align-items-center w-100 me-3">
-                        <span className="fw-medium">{section.title}</span>
-                        <Badge bg="secondary" className="ms-2">
-                          {section.lessons?.length || 0}
-                        </Badge>
-                      </div>
-                    </Accordion.Header>
-                    <Accordion.Body className="p-0">
-                      <div className="lessons-list">
-                        {section.lessons?.map((lesson, lessonIndex) => (
-                          <div
-                            key={lesson._id || lessonIndex}
-                            className={`lesson-item p-3 border-bottom cursor-pointer ${
-                              currentLesson?._id === lesson._id
-                                ? "bg-primary text-white"
-                                : ""
-                            } ${
-                              completedLessons.has(lesson._id)
-                                ? "completed-lesson"
-                                : ""
-                            }`}
-                            onClick={() => handleLessonSelect(lesson)}
-                          >
-                            <div className="d-flex justify-content-between align-items-center">
-                              <div className="d-flex align-items-center">
-                                {completedLessons.has(lesson._id) ? (
-                                  <i className="bi bi-check-circle-fill text-success me-2"></i>
-                                ) : (
-                                  <i className="bi bi-play-circle me-2"></i>
-                                )}
-                                <span
-                                  className={
-                                    currentLesson?._id === lesson._id
-                                      ? "fw-bold"
-                                      : ""
-                                  }
-                                >
-                                  {lesson.title}
-                                </span>
-                              </div>
-                              <div className="text-muted small">
-                                {lesson.duration || "10"} min
-                                {lesson.quiz && (
-                                  <i className="bi bi-patch-question ms-1"></i>
-                                )}
-                              </div>
-                            </div>
-                            {lesson.description && (
-                              <small
-                                className={`d-block mt-1 ${
-                                  currentLesson?._id === lesson._id
-                                    ? "text-light"
-                                    : "text-muted"
-                                }`}
-                              >
-                                {lesson.description}
-                              </small>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </Accordion.Body>
-                  </Accordion.Item>
-                ))}
-              </Accordion>
-            ) : (
-              <Alert variant="info">
-                <i className="bi bi-info-circle me-2"></i>
-                No curriculum available for this course yet.
-              </Alert>
-            )}
+            {/* Tab Content */}
+            <div className="tab-content-area">
+              {renderTabContent()}
+            </div>
           </div>
         </Col>
       </Row>

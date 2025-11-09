@@ -7,6 +7,11 @@ const courseRoutes = require('./routes/courses');
 const paymentRoutes = require('./routes/payments');
 const userRoutes = require('./routes/users');
 const progressRoutes = require('./routes/progress');
+const analyticsRoutes = require('./routes/analytics');
+const commentRoutes = require('./routes/comments');
+const uploadRoutes = require('./routes/upload');
+
+
 
 
 const app = express();
@@ -62,6 +67,11 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/uploads', express.static('uploads'));
+
+app.use('/api', commentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

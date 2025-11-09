@@ -1,7 +1,7 @@
 // client/src/components/DashboardLayout.jsx
 import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext.jsx';
 import { Container, Row, Col, Nav, Badge, Button, Modal } from 'react-bootstrap';
 
 const DashboardLayout = () => {
@@ -24,20 +24,18 @@ const DashboardLayout = () => {
     { path: '/dashboard/my-courses', icon: '📚', label: 'My Courses', badge: '5' },
     { path: '/dashboard/create-course', icon: '➕', label: 'Create Course', badge: null },
     { path: '/dashboard/students', icon: '👥', label: 'Students', badge: '12' },
-      { path: '/dashboard/quiz-analytics', icon: '📊', label: 'Analytics', badge: null },
-
+    { path: '/dashboard/analytics', icon: '📈', label: 'Analytics', badge: null },
     { path: '/dashboard/messages', icon: '💬', label: 'Messages', badge: '3' }
   ];
 
-// In your DashboardLayout.jsx - make sure studentLinks looks like this:
-const studentLinks = [
-  { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
-  { path: '/dashboard/my-courses', icon: '📖', label: 'My Courses', badge: '4' },
-  { path: '/dashboard/browse', icon: '🔍', label: 'Browse Courses', badge: null }, // ← This should point to dashboard/browse
-  { path: '/dashboard/progress', icon: '✅', label: 'Progress', badge: '2' },
-  { path: '/dashboard/certificates', icon: '🏆', label: 'Certificates', badge: '1' },
-  { path: '/dashboard/wishlist', icon: '❤️', label: 'Wishlist', badge: '3' }
-];
+  const studentLinks = [
+    { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
+    { path: '/dashboard/my-courses', icon: '📖', label: 'My Courses', badge: '4' },
+    { path: '/dashboard/browse', icon: '🔍', label: 'Browse Courses', badge: null },
+    { path: '/dashboard/progress', icon: '✅', label: 'Progress', badge: '2' },
+    { path: '/dashboard/certificates', icon: '🏆', label: 'Certificates', badge: '1' },
+    { path: '/dashboard/wishlist', icon: '❤️', label: 'Wishlist', badge: '3' }
+  ];
 
   const commonLinks = [
     { path: '/dashboard/profile', icon: '👤', label: 'Profile', badge: null },
@@ -57,7 +55,7 @@ const studentLinks = [
   };
 
   return (
-    <div className="dashboard-layout-container">
+    <div className="dashboard-layout">
       {/* Logout Confirmation Modal */}
       <Modal show={showLogoutModal} onHide={() => setShowLogoutModal(false)} centered>
         <Modal.Header closeButton>
@@ -78,7 +76,7 @@ const studentLinks = [
       </Modal>
 
       {/* Mobile Header */}
-      <div className="mobile-header d-lg-none">
+      <div className="dashboard-mobile-header d-lg-none">
         <div className="mobile-header-content">
           <Button
             variant="outline-primary"
@@ -107,15 +105,15 @@ const studentLinks = [
         />
       )}
 
-      <Container fluid className="p-0">
+      <Container fluid className="dashboard-container">
         <Row className="g-0">
           {/* Desktop Sidebar */}
           <Col 
             lg={collapsed ? 1 : 2} 
             className="sidebar-column d-none d-lg-block"
           >
-            <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-              {/* Brand Logo (Desktop) */}
+            <div className={`dashboard-sidebar ${collapsed ? 'collapsed' : ''}`}>
+              {/* Brand Logo */}
               <div className="sidebar-brand">
                 {!collapsed ? (
                   <>
@@ -127,7 +125,7 @@ const studentLinks = [
                 )}
               </div>
 
-              {/* Sidebar Header */}
+              {/* User Info */}
               <div className="sidebar-header">
                 {!collapsed ? (
                   <div className="user-info">
@@ -135,9 +133,9 @@ const studentLinks = [
                       {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
                     <div className="user-details">
-                      <h6 className="user-name">{user?.name}</h6>
-                      <Badge className="user-role-badge">
-                        {user?.role}
+                      <h6 className="user-name">{user?.name || 'User'}</h6>
+                      <Badge bg="primary" className="user-role-badge">
+                        {user?.role || 'Student'}
                       </Badge>
                     </div>
                   </div>
@@ -148,7 +146,7 @@ const studentLinks = [
                 )}
               </div>
 
-              {/* Navigation Links */}
+              {/* Main Navigation */}
               <Nav className="sidebar-nav flex-column">
                 {links.map((link) => (
                   <Nav.Link
@@ -175,7 +173,7 @@ const studentLinks = [
                 ))}
               </Nav>
 
-              {/* Common Links */}
+              {/* Account Links */}
               {!collapsed && (
                 <div className="sidebar-section">
                   <div className="section-label">Account</div>
@@ -200,7 +198,7 @@ const studentLinks = [
               )}
 
               {/* Logout Button */}
-              <div className="sidebar-section">
+              <div className="sidebar-footer">
                 {!collapsed && <div className="section-label">Actions</div>}
                 <Nav className="sidebar-nav flex-column">
                   <Nav.Link
@@ -217,12 +215,10 @@ const studentLinks = [
                     )}
                   </Nav.Link>
                 </Nav>
-              </div>
 
-              {/* Toggle Button */}
-              <div className="sidebar-footer">
+                {/* Toggle Button */}
                 <button
-                  className="toggle-btn"
+                  className="sidebar-toggle-btn"
                   onClick={() => setCollapsed(!collapsed)}
                   title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
@@ -236,16 +232,15 @@ const studentLinks = [
           {/* Mobile Sidebar */}
           <div className={`mobile-sidebar d-lg-none ${mobileOpen ? 'open' : ''}`}>
             <div className="mobile-sidebar-content">
-              {/* Mobile Sidebar Header */}
               <div className="sidebar-header">
                 <div className="user-info">
                   <div className="user-avatar">
                     {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                   <div className="user-details">
-                    <h6 className="user-name">{user?.name}</h6>
-                    <Badge className="user-role-badge">
-                      {user?.role}
+                    <h6 className="user-name">{user?.name || 'User'}</h6>
+                    <Badge bg="primary" className="user-role-badge">
+                      {user?.role || 'Student'}
                     </Badge>
                   </div>
                   <Button
@@ -259,7 +254,6 @@ const studentLinks = [
                 </div>
               </div>
 
-              {/* Mobile Navigation Links */}
               <Nav className="sidebar-nav flex-column">
                 {links.map((link) => (
                   <Nav.Link
@@ -282,7 +276,6 @@ const studentLinks = [
                 ))}
               </Nav>
 
-              {/* Mobile Common Links */}
               <div className="sidebar-section">
                 <div className="section-label">Account</div>
                 <Nav className="sidebar-nav flex-column">
@@ -305,7 +298,6 @@ const studentLinks = [
                 </Nav>
               </div>
 
-              {/* Mobile Logout Button */}
               <div className="sidebar-section">
                 <div className="section-label">Actions</div>
                 <Nav className="sidebar-nav flex-column">
@@ -328,34 +320,34 @@ const studentLinks = [
             </div>
           </div>
 
-          {/* Main Content */}
+          {/* Main Content Area */}
           <Col 
             lg={collapsed ? 11 : 10} 
-            className="main-content"
+            className="main-content-column"
           >
-            <div className="content-wrapper">
+            <div className="main-content-wrapper">
               <Outlet />
             </div>
           </Col>
         </Row>
       </Container>
 
-      {/* Custom Styles */}
+      {/* CSS Styles */}
       <style>{`
-        .dashboard-layout-container {
-          background: #f8fafc;
+        .dashboard-layout {
           min-height: 100vh;
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: #f8fafc;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
         }
 
         /* Mobile Header */
-        .mobile-header {
+        .dashboard-mobile-header {
           background: white;
           border-bottom: 1px solid #e2e8f0;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
           position: sticky;
           top: 0;
-          z-index: 500;
+          z-index: 1000;
         }
 
         .mobile-header-content {
@@ -367,19 +359,14 @@ const studentLinks = [
 
         .sidebar-toggle-mobile {
           border: none;
-          background: rgba(102, 126, 234, 0.1);
-          color: #667eea;
-          border-radius: 10px;
+          background: rgba(79, 70, 229, 0.1);
+          color: #4f46e5;
+          border-radius: 8px;
           width: 40px;
           height: 40px;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0;
-        }
-
-        .sidebar-toggle-mobile:hover {
-          background: rgba(102, 126, 234, 0.15);
         }
 
         .mobile-brand {
@@ -387,7 +374,7 @@ const studentLinks = [
           align-items: center;
           font-weight: 700;
           font-size: 1.25rem;
-          color: #2d3748;
+          color: #1f2937;
         }
 
         .brand-icon {
@@ -396,17 +383,17 @@ const studentLinks = [
         }
 
         .brand-text {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
 
         .user-avatar-sm {
-          width: 35px;
-          height: 35px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
+          width: 36px;
+          height: 36px;
+          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -415,7 +402,7 @@ const studentLinks = [
           font-size: 0.9rem;
         }
 
-        /* Mobile Overlay */
+        /* Sidebar Overlay */
         .sidebar-overlay {
           position: fixed;
           top: 0;
@@ -423,109 +410,40 @@ const studentLinks = [
           right: 0;
           bottom: 0;
           background: rgba(0, 0, 0, 0.5);
-          z-index: 998;
-          animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        /* Mobile Sidebar */
-        .mobile-sidebar {
-          position: fixed;
-          top: 0;
-          left: -100%;
-          width: 280px;
-          height: 100vh;
-          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-          border-right: 1px solid #e2e8f0;
-          box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
           z-index: 999;
-          transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          overflow-y: auto;
-        }
-
-        .mobile-sidebar.open {
-          left: 0;
-        }
-
-        .mobile-sidebar-content {
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .mobile-sidebar .sidebar-header {
-          padding: 1.5rem;
-          border-bottom: 1px solid #f1f5f9;
-          background: white;
-        }
-
-        .mobile-sidebar .user-info {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-
-        .close-sidebar {
-          margin-left: auto;
-          border: none;
-          background: rgba(102, 126, 234, 0.1);
-          color: #667eea;
-          border-radius: 8px;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0;
-        }
-
-        .close-sidebar:hover {
-          background: rgba(102, 126, 234, 0.2);
         }
 
         /* Desktop Sidebar */
-        .sidebar-column {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .sidebar {
-          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        .dashboard-sidebar {
+          background: white;
           border-right: 1px solid #e2e8f0;
-          box-shadow: 2px 0 20px rgba(0, 0, 0, 0.05);
+          box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
           min-height: 100vh;
           display: flex;
           flex-direction: column;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.3s ease;
           position: sticky;
           top: 0;
-          z-index: 100;
         }
 
-        .sidebar.collapsed {
+        .dashboard-sidebar.collapsed {
           min-width: 70px;
         }
 
-        /* Sidebar Brand */
         .sidebar-brand {
           display: flex;
           align-items: center;
-          justify-content: center;
           padding: 1.5rem 1.25rem;
           border-bottom: 1px solid #f1f5f9;
           font-weight: 700;
-          font-size: 1.5rem;
+          font-size: 1.25rem;
           gap: 0.5rem;
         }
 
         .brand-icon-collapsed {
-          font-size: 1.8rem;
+          font-size: 1.5rem;
         }
 
-        /* Sidebar Header */
         .sidebar-header {
           padding: 1.5rem 1.25rem;
           border-bottom: 1px solid #f1f5f9;
@@ -538,24 +456,24 @@ const studentLinks = [
         }
 
         .user-avatar {
-          width: 45px;
-          height: 45px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 12px;
+          width: 44px;
+          height: 44px;
+          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+          border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           font-weight: 600;
-          font-size: 1.1rem;
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          font-size: 1rem;
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
 
         .user-avatar-collapsed {
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
+          width: 36px;
+          height: 36px;
+          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -569,14 +487,14 @@ const studentLinks = [
         }
 
         .user-name {
-          color: #2d3748;
+          color: #1f2937;
           font-weight: 600;
           margin-bottom: 0.25rem;
-          font-size: 0.95rem;
+          font-size: 0.9rem;
         }
 
         .user-role-badge {
-          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
           border: none;
           font-size: 0.7rem;
           font-weight: 500;
@@ -594,33 +512,35 @@ const studentLinks = [
           display: flex;
           align-items: center;
           padding: 0.75rem 1rem;
-          border-radius: 12px;
+          border-radius: 8px;
           text-decoration: none;
           color: #64748b;
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
           position: relative;
           margin-bottom: 0.25rem;
-          cursor: pointer;
+          border: none;
+          background: none;
+          width: 100%;
+          text-align: left;
         }
 
         .nav-item:hover {
-          background: rgba(102, 126, 234, 0.1);
-          color: #667eea;
-          transform: translateX(4px);
+          background: rgba(79, 70, 229, 0.08);
+          color: #4f46e5;
+          transform: translateX(2px);
         }
 
         .nav-item.active {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
           color: white;
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          transform: translateX(0);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
 
         .nav-icon {
-          font-size: 1.25rem;
+          font-size: 1.2rem;
           width: 24px;
           text-align: center;
-          transition: transform 0.3s ease;
+          transition: transform 0.2s ease;
         }
 
         .nav-item:hover .nav-icon {
@@ -637,13 +557,13 @@ const studentLinks = [
 
         .nav-label {
           font-weight: 500;
-          font-size: 0.9rem;
+          font-size: 0.875rem;
         }
 
         .nav-badge {
-          background: #e53e3e;
+          background: #ef4444;
           color: white;
-          border-radius: 10px;
+          border-radius: 6px;
           padding: 0.2rem 0.5rem;
           font-size: 0.7rem;
           font-weight: 600;
@@ -655,7 +575,7 @@ const studentLinks = [
           position: absolute;
           top: 8px;
           right: 8px;
-          background: #e53e3e;
+          background: #ef4444;
           color: white;
           border-radius: 50%;
           width: 18px;
@@ -675,16 +595,12 @@ const studentLinks = [
 
         /* Logout Item */
         .logout-item {
-          color: #e53e3e !important;
+          color: #ef4444 !important;
         }
 
         .logout-item:hover {
-          background: rgba(229, 62, 62, 0.1) !important;
-          color: #e53e3e !important;
-        }
-
-        .logout-item .nav-icon {
-          color: inherit;
+          background: rgba(239, 68, 68, 0.08) !important;
+          color: #ef4444 !important;
         }
 
         /* Sidebar Sections */
@@ -705,85 +621,127 @@ const studentLinks = [
 
         /* Sidebar Footer */
         .sidebar-footer {
-          padding: 1rem;
+          padding: 1rem 0.75rem;
           border-top: 1px solid #f1f5f9;
         }
 
-        .toggle-btn {
+        .sidebar-toggle-btn {
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
           width: 100%;
           padding: 0.75rem;
-          background: rgba(102, 126, 234, 0.1);
+          background: rgba(79, 70, 229, 0.08);
           border: none;
-          border-radius: 10px;
-          color: #667eea;
+          border-radius: 8px;
+          color: #4f46e5;
           font-weight: 500;
-          transition: all 0.3s ease;
+          font-size: 0.875rem;
+          transition: all 0.2s ease;
           cursor: pointer;
         }
 
-        .toggle-btn:hover {
-          background: #667eea;
+        .sidebar-toggle-btn:hover {
+          background: #4f46e5;
           color: white;
           transform: translateY(-1px);
         }
 
-        /* Main Content */
-        .main-content {
-          background: #f8fafc;
-          min-height: 100vh;
-          margin-left: 0;
+        /* Mobile Sidebar */
+        .mobile-sidebar {
+          position: fixed;
+          top: 0;
+          left: -100%;
+          width: 280px;
+          height: 100vh;
+          background: white;
+          border-right: 1px solid #e2e8f0;
+          box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+          z-index: 1000;
+          transition: left 0.3s ease;
+          overflow-y: auto;
         }
 
-        .content-wrapper {
+        .mobile-sidebar.open {
+          left: 0;
+        }
+
+        .mobile-sidebar-content {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .mobile-sidebar .sidebar-header {
+          padding: 1.5rem;
+          border-bottom: 1px solid #f1f5f9;
+          background: white;
+        }
+
+        .close-sidebar {
+          margin-left: auto;
+          border: none;
+          background: rgba(79, 70, 229, 0.1);
+          color: #4f46e5;
+          border-radius: 6px;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           padding: 0;
+        }
+
+        /* Main Content */
+        .main-content-column {
+          background: #f8fafc;
+          min-height: 100vh;
+        }
+
+        .main-content-wrapper {
+          padding: 2rem;
           max-width: 100%;
           margin: 0;
         }
 
         /* Collapsed State */
-        .sidebar.collapsed .sidebar-brand {
+        .dashboard-sidebar.collapsed .sidebar-brand {
+          padding: 1rem 0.5rem;
+          justify-content: center;
+        }
+
+        .dashboard-sidebar.collapsed .sidebar-header {
           padding: 1rem 0.5rem;
         }
 
-        .sidebar.collapsed .sidebar-header {
-          padding: 1rem 0.5rem;
-        }
-
-        .sidebar.collapsed .nav-item {
+        .dashboard-sidebar.collapsed .nav-item {
           padding: 0.75rem;
           justify-content: center;
         }
 
-        .sidebar.collapsed .sidebar-section {
+        .dashboard-sidebar.collapsed .sidebar-section {
           display: none;
         }
 
-        .sidebar.collapsed .toggle-btn span {
+        .dashboard-sidebar.collapsed .sidebar-toggle-btn span {
           display: none;
         }
 
-        /* Responsive Design */
+        /* Responsive */
         @media (max-width: 991.98px) {
-          .main-content {
+          .main-content-column {
             width: 100%;
           }
           
-          .content-wrapper {
-            padding: 0;
+          .main-content-wrapper {
+            padding: 1rem;
           }
         }
 
         @media (max-width: 576px) {
           .mobile-sidebar {
             width: 100vw;
-          }
-          
-          .content-wrapper {
-            padding: 0;
           }
         }
       `}</style>

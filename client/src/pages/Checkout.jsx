@@ -25,13 +25,12 @@ import './Checkout.css';
 // Initialize Stripe - FIXED for Vite
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key');
 
-// Payment Form Component
+// Payment Form Component - FIXED VERSION
 const CheckoutForm = ({ course, onSuccess, onCancel }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [succeeded, setSucceeded] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -41,44 +40,34 @@ const CheckoutForm = ({ course, onSuccess, onCancel }) => {
     }
 
     setProcessing(true);
+    setError('');
 
-    const { error: submitError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/payment-success`,
-      },
-      redirect: 'if_required',
-    });
+    try {
+      const { error: submitError } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          // Don't use return_url - handle everything manually
+          // return_url: `${window.location.origin}/payment-success`,
+        },
+        redirect: 'if_required',
+      });
 
-    if (submitError) {
-      setError(submitError.message);
+      if (submitError) {
+        setError(submitError.message);
+        setProcessing(false);
+        return;
+      }
+
+      // If we get here, payment was successful
+      // Call the success handler to complete enrollment
+      await onSuccess();
+      
+    } catch (err) {
+      console.error('Payment error:', err);
+      setError('Payment processing failed. Please try again.');
       setProcessing(false);
-    } else {
-      setSucceeded(true);
-      onSuccess();
     }
   };
-
-  if (succeeded) {
-    return (
-      <div className="text-center py-4">
-        <div className="success-icon mb-3">
-          <i className="bi bi-check-circle-fill text-success" style={{ fontSize: '3rem' }}></i>
-        </div>
-        <h5 className="fw-bold text-success mb-3">Payment Successful!</h5>
-        <p className="text-muted mb-4">
-          You have successfully enrolled in <strong>{course.title}</strong>
-        </p>
-        <Button 
-          variant="success" 
-          onClick={onSuccess}
-          className="me-2"
-        >
-          Start Learning
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="payment-form">
@@ -190,35 +179,35 @@ const Checkout = () => {
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    try {
-      setPaymentLoading(true);
-      const token = localStorage.getItem('token');
-      
-      // For paid courses, redirect to success page
-      if (course.price > 0) {
-        navigate(`/payment-success?payment_intent=manual&course_id=${id}`);
-      } else {
-        // For free courses, confirm enrollment then redirect to success
-        await axios.post(
-          'http://localhost:5000/api/payments/confirm-enrollment',
-          { 
-            courseId: id,
-            paymentIntentId: 'free_course'
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+const handlePaymentSuccess = async (paymentIntentId = 'manual') => {
+  try {
+    setPaymentLoading(true);
+    const token = localStorage.getItem('token');
+    
+    // For both paid and free courses, confirm enrollment first
+    const enrollmentResponse = await axios.post(
+      'http://localhost:5000/api/payments/confirm-enrollment',
+      { 
+        courseId: id,
+        paymentIntentId: course.price > 0 ? paymentIntentId : 'free_course'
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-        navigate(`/payment-success?course_id=${id}`);
-      }
-      
-    } catch (err) {
-      console.error('Enrollment confirmation error:', err);
-      setError('Payment successful but enrollment failed. Please contact support.');
-    } finally {
-      setPaymentLoading(false);
+    if (enrollmentResponse.data.success) {
+      // Redirect to success page with course ID
+      navigate(`/payment-success?course_id=${id}&payment_intent=${paymentIntentId}`);
+    } else {
+      setError(enrollmentResponse.data.message || 'Enrollment failed');
     }
-  };
+    
+  } catch (err) {
+    console.error('Enrollment confirmation error:', err);
+    setError(err.response?.data?.message || 'Payment successful but enrollment failed. Please contact support.');
+  } finally {
+    setPaymentLoading(false);
+  }
+};
 
   const handleCancel = () => {
     navigate(`/courses/${id}`);

@@ -1,0 +1,65 @@
+/* Course Comments Styles */
+.comments-list {
+  padding-right: 8px;
+}
+
+.comments-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.comments-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.comments-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+
+.comments-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.comment-item {
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 1rem;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.reply-item {
+  border-left: 2px solid #e9ecef;
+  padding-left: 1rem;
+  margin-top: 0.75rem;
+}
+
+.replies-container {
+  border-left: 2px solid #f8f9fa;
+  padding-left: 1rem;
+  margin-left: 0.25rem;
+}
+
+/* Smooth transitions */
+.comment-item .btn {
+  transition: all 0.2s ease;
+}
+
+.comment-item .btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Compact styling */
+.comments-list .btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Form styling */
+.comment-form-container {
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
