@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { auth } = require('../middleware/auth'); // FIXED IMPORT
+const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -12,9 +12,21 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer
+// FIXED: Configure multer with proper storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    // Preserve original file extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, 'video-' + uniqueSuffix + extension);
+  }
+});
+
 const upload = multer({
-  dest: uploadsDir,
+  storage: storage, // Use the storage configuration
   limits: {
     fileSize: 100 * 1024 * 1024 // 100MB
   },
@@ -38,16 +50,20 @@ router.post('/video', auth, upload.single('video'), (req, res) => {
     }
 
     const videoData = {
+      _id: req.file.filename, // Use filename as ID for deletion
       filename: req.file.filename,
       originalName: req.file.originalname,
       path: req.file.path,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      url: `/uploads/videos/${req.file.filename}`,
+      url: `http://localhost:5000/uploads/videos/${req.file.filename}`, // FIXED: Use full URL
       lessonId: req.body.lessonId,
       courseId: req.body.courseId,
-      uploadedBy: req.user.id
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
     };
+
+    console.log('Video uploaded successfully:', videoData); // Debug log
 
     res.json({
       success: true,
@@ -72,6 +88,7 @@ router.delete('/video/:id', auth, (req, res) => {
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
+      console.log('Video deleted:', filename);
     }
 
     res.json({

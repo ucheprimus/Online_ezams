@@ -1,6 +1,6 @@
 // client/src/components/Instructor/CourseBuilder.jsx
 import { useState, useEffect } from "react";
-import VideoUpload from "./VideoUpload"; // ADD THIS IMPORT
+import VideoUpload from "./VideoUpload";
 import {
   Container,
   Row,
@@ -13,16 +13,33 @@ import {
   Spinner,
   Modal,
   Accordion,
+  Toast,
+  ToastContainer,
 } from "react-bootstrap";
 import axios from "axios";
-import QuizQuestionEditor from "./QuizQuestionEditor"; // ADD THIS IMPORT
+import QuizQuestionEditor from "./QuizQuestionEditor";
+
+// Helper function to delete old videos
+const deleteOldVideo = async (videoFile) => {
+  if (!videoFile?.filename) return;
+  
+  try {
+    const token = localStorage.getItem("token");
+    await axios.delete(
+      `http://localhost:5000/api/upload/video/${videoFile.filename}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  } catch (error) {
+    console.error("Error deleting old video:", error);
+  }
+};
 
 export const CourseBuilder = ({ course, onSave }) => {
   const [curriculum, setCurriculum] = useState([]);
   const [savingSection, setSavingSection] = useState({});
   const [savingLesson, setSavingLesson] = useState({});
 
-  // ========== ADD QUIZ STATES HERE ==========
+  // Quiz states
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [currentLesson, setCurrentLesson] = useState(null);
   const [currentSection, setCurrentSection] = useState(null);
@@ -38,7 +55,14 @@ export const CourseBuilder = ({ course, onSave }) => {
   const [savingQuiz, setSavingQuiz] = useState(false);
   const [lessonQuizzes, setLessonQuizzes] = useState({});
 
-  // Initialize curriculum from course prop
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, message: "", variant: "success" });
+
+  const showToast = (message, variant = "success") => {
+    setToast({ show: true, message, variant });
+  };
+
+  // Initialize curriculum
   useEffect(() => {
     if (course?.curriculum && Array.isArray(course.curriculum)) {
       const initializedCurriculum = course.curriculum.map(
@@ -48,15 +72,13 @@ export const CourseBuilder = ({ course, onSave }) => {
           order: sectionIndex,
           lessons: (section.lessons || []).map((lesson, lessonIndex) => ({
             ...lesson,
-            _id:
-              lesson._id ||
-              `lesson-${Date.now()}-${sectionIndex}-${lessonIndex}`,
+            _id: lesson._id || `lesson-${Date.now()}-${sectionIndex}-${lessonIndex}`,
             order: lessonIndex,
             duration: parseInt(lesson.duration) || 0,
             videoId: lesson.videoId || "",
             videoType: lesson.videoType || "youtube",
-              videoFile: lesson.videoFile || null, // ADD THIS
-
+            videoFile: lesson.videoFile || null,
+            videoUrl: lesson.videoUrl || "",
             description: lesson.description || "",
             title: lesson.title || "New Lesson",
             isPreview: lesson.isPreview || false,
@@ -71,40 +93,13 @@ export const CourseBuilder = ({ course, onSave }) => {
     }
   }, [course]);
 
-  // ========== ADD QUIZ FUNCTIONS HERE ==========
-  // Fetch existing quizzes for lessons
+  // Fetch quizzes on mount
   useEffect(() => {
     if (course?._id) {
       fetchCourseQuizzes();
+      cleanupOrphanedQuizzes();
     }
   }, [course?._id]);
-
-  // Add this debug effect to see state changes
-  useEffect(() => {
-    console.log("🔄 lessonQuizzes state updated:", lessonQuizzes);
-  }, [lessonQuizzes]);
-
-  // Also add this to see when curriculum loads
-  useEffect(() => {
-    console.log(
-      "📚 Curriculum loaded:",
-      curriculum.map((s) => ({
-        section: s.title,
-        lessons: s.lessons?.map((l) => ({ id: l._id, title: l.title })),
-      }))
-    );
-  }, [curriculum]);
-
-  // Add this debug effect
-  useEffect(() => {
-    console.log("🔍 Current lessonQuizzes state:", lessonQuizzes);
-    console.log(
-      "🔍 Current curriculum lessons:",
-      curriculum.flatMap((s) =>
-        s.lessons?.map((l) => ({ id: l._id, title: l.title }))
-      )
-    );
-  }, [lessonQuizzes, curriculum]);
 
   const fetchCourseQuizzes = async () => {
     try {
@@ -114,34 +109,23 @@ export const CourseBuilder = ({ course, onSave }) => {
         { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
       );
 
-      console.log("✅ Quizzes fetched:", response.data);
-
-      // Organize quizzes by lessonId
       const quizzesByLesson = {};
       response.data.forEach((quiz) => {
         quizzesByLesson[quiz.lessonId] = quiz;
-        console.log(`📝 Quiz found for lesson ${quiz.lessonId}:`, quiz.title);
       });
       setLessonQuizzes(quizzesByLesson);
-      console.log("🎯 Final lessonQuizzes state:", quizzesByLesson);
     } catch (error) {
-      console.log("No quizzes found or error fetching:", error.message);
       setLessonQuizzes({});
     }
   };
 
-  // Open quiz modal for a lesson - FIXED VERSION
   const handleShowQuizModal = async (section, lesson) => {
     setCurrentSection(section);
     setCurrentLesson(lesson);
-
-    setShowQuizModal(true); // Show modal immediately for better UX
+    setShowQuizModal(true);
 
     try {
-      console.log("🔍 Checking for quiz for lesson:", lesson._id);
       const token = localStorage.getItem("token");
-
-      // Always fetch the latest quiz data from backend
       const response = await axios.get(
         `http://localhost:5000/api/quizzes/lesson/${lesson._id}`,
         {
@@ -150,13 +134,8 @@ export const CourseBuilder = ({ course, onSave }) => {
         }
       );
 
-      console.log("📊 Quiz fetch response:", response.data);
-
       if (response.data.success !== false && response.data._id) {
-        // Quiz exists - use the fetched data
         const existingQuiz = response.data;
-        console.log("✅ Found existing quiz:", existingQuiz.title);
-
         setQuizData({
           title: existingQuiz.title,
           description: existingQuiz.description,
@@ -167,14 +146,11 @@ export const CourseBuilder = ({ course, onSave }) => {
           isMandatory: existingQuiz.isMandatory !== false,
         });
 
-        // Update local state to keep it in sync
         setLessonQuizzes((prev) => ({
           ...prev,
           [lesson._id]: existingQuiz,
         }));
       } else {
-        // No quiz exists - set default data
-        console.log("📝 No quiz found, creating new one");
         setQuizData({
           title: `Quiz: ${lesson.title}`,
           description: `Test your knowledge of ${lesson.title}`,
@@ -186,8 +162,6 @@ export const CourseBuilder = ({ course, onSave }) => {
         });
       }
     } catch (error) {
-      // If error (like 404), assume no quiz exists
-      console.log("❌ Error fetching quiz, creating new:", error.message);
       setQuizData({
         title: `Quiz: ${lesson.title}`,
         description: `Test your knowledge of ${lesson.title}`,
@@ -199,7 +173,7 @@ export const CourseBuilder = ({ course, onSave }) => {
       });
     }
   };
-  // Save quiz to backend
+
   const handleSaveQuiz = async () => {
     if (!currentLesson || !course) return;
 
@@ -216,41 +190,37 @@ export const CourseBuilder = ({ course, onSave }) => {
       let response;
 
       if (existingQuiz) {
-        // Update existing quiz
         response = await axios.put(
           `http://localhost:5000/api/quizzes/${existingQuiz._id}`,
           quizPayload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        showToast("Quiz updated successfully!", "success");
       } else {
-        // Create new quiz
         response = await axios.post(
           "http://localhost:5000/api/quizzes",
           quizPayload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        showToast("Quiz created successfully!", "success");
       }
 
-      // Update local state
       setLessonQuizzes((prev) => ({
         ...prev,
         [currentLesson._id]: response.data,
       }));
 
       setShowQuizModal(false);
-      alert("Quiz saved successfully!");
     } catch (error) {
-      console.error("Error saving quiz:", error);
-      alert(
-        "Failed to save quiz: " +
-          (error.response?.data?.message || error.message)
+      showToast(
+        "Failed to save quiz: " + (error.response?.data?.message || error.message),
+        "danger"
       );
     } finally {
       setSavingQuiz(false);
     }
   };
 
-  // Delete quiz
   const handleDeleteQuiz = async (lessonId) => {
     if (!window.confirm("Are you sure you want to delete this quiz?")) return;
 
@@ -263,25 +233,22 @@ export const CourseBuilder = ({ course, onSave }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Update local state
         setLessonQuizzes((prev) => {
           const updated = { ...prev };
           delete updated[lessonId];
           return updated;
         });
 
-        alert("Quiz deleted successfully!");
+        showToast("Quiz deleted successfully!", "success");
       }
     } catch (error) {
-      console.error("Error deleting quiz:", error);
-      alert(
-        "Failed to delete quiz: " +
-          (error.response?.data?.message || error.message)
+      showToast(
+        "Failed to delete quiz: " + (error.response?.data?.message || error.message),
+        "danger"
       );
     }
   };
 
-  // ========== ADD QUIZ QUESTION MANAGEMENT FUNCTIONS HERE ==========
   const addQuestion = (type = "multiple_choice") => {
     const newQuestion = {
       type,
@@ -333,7 +300,6 @@ export const CourseBuilder = ({ course, onSave }) => {
     setQuizData((prev) => ({ ...prev, questions: newQuestions }));
   };
 
-  // Your existing functions (saveSection, saveLesson, addSection, etc.) remain the same
   const saveSection = async (sectionId) => {
     const section = curriculum.find((s) => s._id === sectionId);
     if (!section) return;
@@ -341,8 +307,7 @@ export const CourseBuilder = ({ course, onSave }) => {
     setSavingSection((prev) => ({ ...prev, [sectionId]: true }));
 
     try {
-      const isRealSectionId =
-        section._id && !section._id.toString().startsWith("section-");
+      const isRealSectionId = section._id && !section._id.toString().startsWith("section-");
 
       if (isRealSectionId) {
         await onSave({
@@ -354,13 +319,13 @@ export const CourseBuilder = ({ course, onSave }) => {
             order: section.order,
           },
         });
+        showToast("Section updated successfully!", "success");
       } else {
-        console.log("Using bulk save for new section");
         await onSave({ curriculum });
+        showToast("Section saved successfully!", "success");
       }
     } catch (error) {
-      console.error("Failed to save section:", error);
-      alert("Failed to save section: " + error.message);
+      showToast("Failed to save section: " + error.message, "danger");
     } finally {
       setSavingSection((prev) => ({ ...prev, [sectionId]: false }));
     }
@@ -375,40 +340,93 @@ export const CourseBuilder = ({ course, onSave }) => {
     setSavingLesson((prev) => ({ ...prev, [saveKey]: true }));
 
     try {
-      let videoUrl = "";
-      if (lesson.videoType === "youtube" && lesson.videoId) {
-        videoUrl = `https://www.youtube.com/watch?v=${lesson.videoId}`;
+      const isRealSectionId = section._id && !section._id.toString().startsWith("section-");
+      const isRealLessonId = lesson._id && !lesson._id.toString().startsWith("lesson-");
+
+      let oldLessonData = null;
+      if (isRealLessonId) {
+        try {
+          const token = localStorage.getItem("token");
+          const response = await axios.get(
+            `http://localhost:5000/api/courses/${course._id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          const oldSection = response.data.curriculum?.find(s => s._id === section._id);
+          oldLessonData = oldSection?.lessons?.find(l => l._id === lesson._id);
+        } catch (error) {
+          // Silently continue if we can't fetch old data
+        }
       }
 
-      const isRealSectionId =
-        section._id && !section._id.toString().startsWith("section-");
-      const isRealLessonId =
-        lesson._id && !lesson._id.toString().startsWith("lesson-");
+      let videoUrl = "";
+      let videoId = "";
+      let videoFile = null;
+
+      if (lesson.videoType === "youtube") {
+        if (lesson.videoId) {
+          videoUrl = `https://www.youtube.com/watch?v=${lesson.videoId}`;
+          videoId = lesson.videoId;
+        }
+        
+        if (oldLessonData?.videoType === "upload" && oldLessonData?.videoFile) {
+          await deleteOldVideo(oldLessonData.videoFile);
+        }
+        
+      } else if (lesson.videoType === "upload") {
+        if (lesson.videoFile) {
+          videoFile = lesson.videoFile;
+          videoUrl = lesson.videoFile.url;
+          videoId = lesson.videoFile.filename;
+        } else if (lesson.videoUrl) {
+          videoUrl = lesson.videoUrl;
+          videoId = lesson.videoId || "";
+        }
+        
+        if (oldLessonData?.videoType === "upload" && 
+            oldLessonData?.videoFile?.filename && 
+            lesson.videoFile?.filename &&
+            oldLessonData.videoFile.filename !== lesson.videoFile.filename) {
+          await deleteOldVideo(oldLessonData.videoFile);
+        }
+      }
+
+      const saveData = {
+        title: lesson.title || "Untitled Lesson",
+        description: lesson.description || "",
+        duration: parseInt(lesson.duration) || 0,
+        videoType: lesson.videoType,
+        videoId: videoId,
+        videoUrl: videoUrl,
+        videoFile: videoFile,
+        isPreview: Boolean(lesson.isPreview),
+        content: lesson.content || "",
+        resources: lesson.resources || [],
+        order: parseInt(lesson.order) || 0,
+      };
+
+      if (lesson.videoType === "upload" && !saveData.videoUrl) {
+        throw new Error("Video URL is required for uploaded videos");
+      }
 
       if (isRealSectionId && isRealLessonId) {
         await onSave({
           type: "lesson",
           sectionId: section._id,
           lessonId: lesson._id,
-          data: {
-            title: lesson.title,
-            description: lesson.description,
-            duration: lesson.duration,
-            videoUrl: videoUrl,
-            videoType: lesson.videoType,
-            isPreview: lesson.isPreview,
-            content: lesson.content,
-            resources: lesson.resources,
-            order: lesson.order,
-          },
+          data: saveData,
         });
+        showToast("Lesson updated successfully!", "success");
       } else {
-        console.log("Using bulk save for new lesson/section");
         await onSave({ curriculum });
+        showToast("Lesson saved successfully!", "success");
       }
+      
     } catch (error) {
-      console.error("Failed to save lesson:", error);
-      alert("Failed to save lesson: " + error.message);
+      showToast(
+        "Failed to save lesson: " + (error.response?.data?.message || error.message),
+        "danger"
+      );
     } finally {
       setSavingLesson((prev) => ({ ...prev, [saveKey]: false }));
     }
@@ -422,8 +440,8 @@ export const CourseBuilder = ({ course, onSave }) => {
       order: curriculum.length,
       lessons: [],
     };
-    const updatedCurriculum = [...curriculum, newSection];
-    setCurriculum(updatedCurriculum);
+    setCurriculum([...curriculum, newSection]);
+    showToast("Section added! Don't forget to save it.", "info");
   };
 
   const updateSection = (sectionId, fieldOrUpdates, value) => {
@@ -440,14 +458,7 @@ export const CourseBuilder = ({ course, onSave }) => {
     setCurriculum(updatedCurriculum);
   };
 
-  const deleteSection = (sectionId) => {
-    if (window.confirm("Delete this section and all its lessons?")) {
-      const updatedCurriculum = curriculum.filter(
-        (section) => section._id !== sectionId
-      );
-      setCurriculum(updatedCurriculum);
-    }
-  };
+
 
   const addLesson = (sectionId) => {
     const newLesson = {
@@ -478,6 +489,7 @@ export const CourseBuilder = ({ course, onSave }) => {
     });
 
     setCurriculum(updatedCurriculum);
+    showToast("Lesson added! Don't forget to save it.", "info");
   };
 
   const updateLesson = (sectionId, lessonId, fieldOrUpdates, value) => {
@@ -503,23 +515,95 @@ export const CourseBuilder = ({ course, onSave }) => {
     setCurriculum(updatedCurriculum);
   };
 
-  const deleteLesson = (sectionId, lessonId) => {
-    if (window.confirm("Delete this lesson?")) {
-      const updatedCurriculum = curriculum.map((section) => {
-        if (section._id === sectionId) {
-          return {
-            ...section,
-            lessons: section.lessons.filter(
-              (lesson) => lesson._id !== lessonId
-            ),
-          };
-        }
-        return section;
-      });
+  const cleanupOrphanedQuizzes = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `http://localhost:5000/api/quizzes/course/${course._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      setCurriculum(updatedCurriculum);
+      const deletePromises = response.data
+        .filter((quiz) => !quiz.lessonId || quiz.lessonId === "null")
+        .map((quiz) =>
+          axios.delete(`http://localhost:5000/api/quizzes/${quiz._id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+
+      await Promise.all(deletePromises);
+      fetchCourseQuizzes();
+    } catch (error) {
+      // Silently handle cleanup errors
     }
   };
+
+const deleteLesson = async (sectionId, lessonId) => {
+  if (!window.confirm("Delete this lesson?")) return;
+
+  try {
+    const section = curriculum.find((s) => s._id === sectionId);
+    const lesson = section?.lessons.find((l) => l._id === lessonId);
+    if (!lesson) return;
+
+    // Check if it's a real lesson (not temporary)
+    const isRealLessonId = lesson._id && !lesson._id.toString().startsWith("lesson-");
+
+    if (isRealLessonId) {
+      // Delete from backend
+      await onSave({
+        type: "delete-lesson",
+        sectionId: section._id,
+        lessonId: lesson._id
+      });
+    }
+
+    // Update local state
+    const updatedCurriculum = curriculum.map((section) => {
+      if (section._id === sectionId) {
+        return {
+          ...section,
+          lessons: section.lessons.filter((lesson) => lesson._id !== lessonId),
+        };
+      }
+      return section;
+    });
+
+    setCurriculum(updatedCurriculum);
+    showToast("Lesson deleted successfully!", "warning");
+    
+  } catch (error) {
+    showToast("Failed to delete lesson: " + error.message, "danger");
+  }
+};
+
+// Add this function right after the deleteLesson function
+const deleteSection = async (sectionId) => {
+  if (!window.confirm("Delete this section and all its lessons?")) return;
+
+  try {
+    const section = curriculum.find((s) => s._id === sectionId);
+    if (!section) return;
+
+    // Check if it's a real section (not temporary)
+    const isRealSectionId = section._id && !section._id.toString().startsWith("section-");
+
+    if (isRealSectionId) {
+      // Delete from backend
+      await onSave({
+        type: "delete-section",
+        sectionId: section._id
+      });
+    }
+
+    // Update local state
+    setCurriculum(curriculum.filter((section) => section._id !== sectionId));
+    showToast("Section deleted successfully!", "warning");
+    
+  } catch (error) {
+    showToast("Failed to delete section: " + error.message, "danger");
+  }
+};
 
   const getTotalLessons = () => {
     return curriculum.reduce(
@@ -546,32 +630,57 @@ export const CourseBuilder = ({ course, onSave }) => {
 
   return (
     <Container fluid>
+      {/* Toast Container */}
+      <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+        <Toast
+          show={toast.show}
+          onClose={() => setToast({ ...toast, show: false })}
+          delay={4000}
+          autohide
+          bg={toast.variant}
+        >
+          <Toast.Header>
+            <strong className="me-auto">
+              {toast.variant === "success" && "✓ Success"}
+              {toast.variant === "danger" && "✗ Error"}
+              {toast.variant === "warning" && "⚠ Warning"}
+              {toast.variant === "info" && "ℹ Info"}
+            </strong>
+          </Toast.Header>
+          <Toast.Body className={toast.variant === "danger" || toast.variant === "warning" ? "text-white" : ""}>
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+
       <Row>
         <Col>
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
               <h4>Course Curriculum Builder</h4>
               <p className="text-muted mb-0">
-                Build your course content - save each section and lesson
-                individually
+                Build your course content - save each section and lesson individually
               </p>
             </div>
             <div className="d-flex align-items-center gap-3">
               <Button
                 variant="outline-secondary"
                 size="sm"
-                onClick={fetchCourseQuizzes}
+                onClick={() => {
+                  fetchCourseQuizzes();
+                  showToast("Quizzes refreshed!", "info");
+                }}
                 title="Refresh quizzes"
               >
                 <i className="bi bi-arrow-clockwise me-1"></i>
                 Refresh Quizzes
               </Button>
               <Badge bg="primary" className="fs-6">
-                {getTotalLessons()}{" "}
-                {getTotalLessons() === 1 ? "Lesson" : "Lessons"}
+                {getTotalLessons()} {getTotalLessons() === 1 ? "Lesson" : "Lessons"}
               </Badge>
             </div>
           </div>
+
           {curriculum.length === 0 && (
             <Alert variant="info" className="text-center">
               <i className="bi bi-info-circle me-2"></i>
@@ -587,9 +696,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                     <Form.Control
                       type="text"
                       value={section.title}
-                      onChange={(e) =>
-                        updateSection(section._id, "title", e.target.value)
-                      }
+                      onChange={(e) => updateSection(section._id, "title", e.target.value)}
                       placeholder="Section Title"
                       className="border-0 fs-5 fw-bold bg-transparent"
                     />
@@ -597,13 +704,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                       as="textarea"
                       rows={2}
                       value={section.description}
-                      onChange={(e) =>
-                        updateSection(
-                          section._id,
-                          "description",
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => updateSection(section._id, "description", e.target.value)}
                       placeholder="What will students learn in this section?"
                       className="mt-2 border-0 bg-transparent"
                     />
@@ -619,15 +720,16 @@ export const CourseBuilder = ({ course, onSave }) => {
                       disabled={savingSection[section._id]}
                     >
                       {savingSection[section._id] ? (
-                        <Spinner
-                          animation="border"
-                          size="sm"
-                          className="me-1"
-                        />
+                        <>
+                          <Spinner animation="border" size="sm" className="me-1" />
+                          Saving...
+                        </>
                       ) : (
-                        <i className="bi bi-save me-1"></i>
+                        <>
+                          <i className="bi bi-save me-1"></i>
+                          Save
+                        </>
                       )}
-                      {savingSection[section._id] ? "Saving..." : "Save"}
                     </Button>
                     <Button
                       variant="outline-danger"
@@ -643,11 +745,7 @@ export const CourseBuilder = ({ course, onSave }) => {
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h6 className="mb-0">Lessons in this section</h6>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => addLesson(section._id)}
-                  >
+                  <Button size="sm" variant="primary" onClick={() => addLesson(section._id)}>
                     <i className="bi bi-plus me-1"></i>
                     Add Lesson
                   </Button>
@@ -663,7 +761,6 @@ export const CourseBuilder = ({ course, onSave }) => {
                     {section.lessons?.map((lesson, lessonIndex) => (
                       <Card key={lesson._id} className="mb-3 border">
                         <Card.Body>
-                          {/* ========== MODIFIED: ADD QUIZ BADGE HERE ========== */}
                           <div className="d-flex justify-content-between align-items-start mb-3">
                             <div className="d-flex align-items-center gap-2">
                               <Badge bg="primary" pill>
@@ -677,61 +774,48 @@ export const CourseBuilder = ({ course, onSave }) => {
                                 </Badge>
                               )}
                             </div>
-                            {/* ========== MODIFIED: ADD QUIZ BUTTON HERE ========== */}
                             <div className="d-flex gap-1">
-                              <Button
-                                variant="success"
-                                size="sm"
-                                onClick={() =>
-                                  saveLesson(section._id, lesson._id)
-                                }
-                                disabled={
-                                  savingLesson[`${section._id}-${lesson._id}`]
-                                }
-                              >
-                                {savingLesson[
-                                  `${section._id}-${lesson._id}`
-                                ] ? (
-                                  <Spinner
-                                    animation="border"
-                                    size="sm"
-                                    className="me-1"
-                                  />
-                                ) : (
-                                  <i className="bi bi-save me-1"></i>
-                                )}
-                                {savingLesson[`${section._id}-${lesson._id}`]
-                                  ? "Saving..."
-                                  : "Save"}
-                              </Button>
+                              {(() => {
+                                const isRealLessonId = lesson._id && !lesson._id.toString().startsWith("lesson-");
+                                const saveKey = `${section._id}-${lesson._id}`;
+                                const isSaving = savingLesson[saveKey];
 
-                              {/* In your lesson button section */}
+                                return (
+                                  <Button
+                                    variant={isRealLessonId ? "warning" : "success"}
+                                    size="sm"
+                                    onClick={() => saveLesson(section._id, lesson._id)}
+                                    disabled={isSaving}
+                                  >
+                                    {isSaving ? (
+                                      <>
+                                        <Spinner animation="border" size="sm" className="me-1" />
+                                        Saving...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className={`bi ${isRealLessonId ? "bi-arrow-clockwise" : "bi-save"} me-1`}></i>
+                                        {isRealLessonId ? "Update" : "Save"}
+                                      </>
+                                    )}
+                                  </Button>
+                                );
+                              })()}
+
                               <Button
-                                variant={
-                                  lessonQuizzes[lesson._id]
-                                    ? "warning"
-                                    : "outline-primary"
-                                }
+                                variant={lessonQuizzes[lesson._id] ? "warning" : "outline-primary"}
                                 size="sm"
-                                onClick={() =>
-                                  handleShowQuizModal(section, lesson)
-                                }
-                                disabled={
-                                  savingLesson[`${section._id}-${lesson._id}`]
-                                }
+                                onClick={() => handleShowQuizModal(section, lesson)}
+                                disabled={savingLesson[`${section._id}-${lesson._id}`]}
                               >
                                 <i className="bi bi-patch-question me-1"></i>
-                                {lessonQuizzes[lesson._id]
-                                  ? "Edit Quiz"
-                                  : "Add Quiz"}
+                                {lessonQuizzes[lesson._id] ? "Edit Quiz" : "Add Quiz"}
                               </Button>
 
                               <Button
                                 variant="outline-danger"
                                 size="sm"
-                                onClick={() =>
-                                  deleteLesson(section._id, lesson._id)
-                                }
+                                onClick={() => deleteLesson(section._id, lesson._id)}
                               >
                                 <i className="bi bi-trash"></i>
                               </Button>
@@ -745,14 +829,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                                 <Form.Control
                                   type="text"
                                   value={lesson.title}
-                                  onChange={(e) =>
-                                    updateLesson(
-                                      section._id,
-                                      lesson._id,
-                                      "title",
-                                      e.target.value
-                                    )
-                                  }
+                                  onChange={(e) => updateLesson(section._id, lesson._id, "title", e.target.value)}
                                   placeholder="e.g., Introduction to React"
                                 />
                               </Form.Group>
@@ -764,14 +841,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                                   type="number"
                                   min="1"
                                   value={lesson.duration}
-                                  onChange={(e) =>
-                                    updateLesson(
-                                      section._id,
-                                      lesson._id,
-                                      "duration",
-                                      parseInt(e.target.value) || 0
-                                    )
-                                  }
+                                  onChange={(e) => updateLesson(section._id, lesson._id, "duration", parseInt(e.target.value) || 0)}
                                   placeholder="15"
                                 />
                               </Form.Group>
@@ -781,14 +851,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                                 <Form.Label>Video Type</Form.Label>
                                 <Form.Select
                                   value={lesson.videoType}
-                                  onChange={(e) =>
-                                    updateLesson(
-                                      section._id,
-                                      lesson._id,
-                                      "videoType",
-                                      e.target.value
-                                    )
-                                  }
+                                  onChange={(e) => updateLesson(section._id, lesson._id, "videoType", e.target.value)}
                                 >
                                   <option value="youtube">YouTube</option>
                                   <option value="upload">Upload</option>
@@ -797,65 +860,71 @@ export const CourseBuilder = ({ course, onSave }) => {
                             </Col>
                           </Row>
 
-                      {lesson.videoType === "youtube" && (
-  <Form.Group className="mb-3">
-    <Form.Label>YouTube Video ID or URL</Form.Label>
-    <Form.Control
-      type="text"
-      value={lesson.videoId}
-      onChange={(e) => {
-        const cleanId = extractYouTubeId(e.target.value);
-        updateLesson(section._id, lesson._id, "videoId", cleanId);
-      }}
-      placeholder="dQw4w9WgXcQ or https://youtube.com/watch?v=..."
-    />
-    <Form.Text className="text-muted">
-      Paste full YouTube URL or just the video ID
-    </Form.Text>
-    {lesson.videoId && (
-      <div className="mt-3">
-        <div className="ratio ratio-16x9">
-          <iframe
-            src={`https://www.youtube.com/embed/${lesson.videoId}`}
-            title="YouTube video preview"
-            allowFullScreen
-            style={{
-              border: "1px solid #dee2e6",
-              borderRadius: "0.375rem",
-            }}
-          />
-        </div>
-        <small className="text-muted">
-          Preview: {lesson.videoId}
-        </small>
-      </div>
-    )}
-  </Form.Group>
-)}
+                          {lesson.videoType === "youtube" && (
+                            <Form.Group className="mb-3">
+                              <Form.Label>YouTube Video ID or URL</Form.Label>
+                              <Form.Control
+                                type="text"
+                                value={lesson.videoId || ""}
+                                onChange={(e) => {
+                                  const cleanId = extractYouTubeId(e.target.value);
+                                  updateLesson(section._id, lesson._id, {
+                                    videoId: cleanId,
+                                    videoUrl: cleanId ? `https://www.youtube.com/watch?v=${cleanId}` : "",
+                                    videoFile: null,
+                                    videoPath: "",
+                                  });
+                                }}
+                                placeholder="dQw4w9WgXcQ or https://youtube.com/watch?v=..."
+                              />
+                              <Form.Text className="text-muted">
+                                Paste full YouTube URL or just the video ID
+                              </Form.Text>
+                              {lesson.videoId && (
+                                <div className="mt-3">
+                                  <div className="ratio ratio-16x9">
+                                    <iframe
+                                      src={`https://www.youtube.com/embed/${lesson.videoId}`}
+                                      title="YouTube video preview"
+                                      allowFullScreen
+                                      style={{ border: "1px solid #dee2e6", borderRadius: "0.375rem" }}
+                                    />
+                                  </div>
+                                  <small className="text-muted">Preview: {lesson.videoId}</small>
+                                </div>
+                              )}
+                            </Form.Group>
+                          )}
 
-{lesson.videoType === "upload" && (
-  <Form.Group className="mb-3">
-    <Form.Label>Upload Video</Form.Label>
-    <VideoUpload
-      sectionId={section._id}
-      lessonId={lesson._id}
-      courseId={course._id}
-      currentVideo={lesson.videoFile}
-      onVideoUploaded={(videoData) => {
-        updateLesson(section._id, lesson._id, {
-          videoFile: videoData,
-          videoId: videoData.url
-        });
-      }}
-      onVideoDeleted={() => {
-        updateLesson(section._id, lesson._id, {
-          videoFile: null,
-          videoId: ""
-        });
-      }}
-    />
-  </Form.Group>
-)}
+                          {lesson.videoType === "upload" && (
+                            <Form.Group className="mb-3">
+                              <Form.Label>Upload Video</Form.Label>
+                              <VideoUpload
+                                sectionId={section._id}
+                                lessonId={lesson._id}
+                                courseId={course._id}
+                                currentVideo={lesson.videoFile}
+                                onVideoUploaded={(videoData) => {
+                                  updateLesson(section._id, lesson._id, {
+                                    videoFile: videoData,
+                                    videoId: videoData.filename,
+                                    videoUrl: videoData.url,
+                                    videoPath: videoData.path,
+                                  });
+                                  showToast("Video uploaded successfully!", "success");
+                                }}
+                                onVideoDeleted={() => {
+                                  updateLesson(section._id, lesson._id, {
+                                    videoFile: null,
+                                    videoId: "",
+                                    videoUrl: "",
+                                    videoPath: "",
+                                  });
+                                  showToast("Video removed!", "warning");
+                                }}
+                              />
+                            </Form.Group>
+                          )}
 
                           <Form.Group className="mb-3">
                             <Form.Label>Description</Form.Label>
@@ -863,14 +932,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                               as="textarea"
                               rows={2}
                               value={lesson.description}
-                              onChange={(e) =>
-                                updateLesson(
-                                  section._id,
-                                  lesson._id,
-                                  "description",
-                                  e.target.value
-                                )
-                              }
+                              onChange={(e) => updateLesson(section._id, lesson._id, "description", e.target.value)}
                               placeholder="What will students learn in this lesson?"
                             />
                           </Form.Group>
@@ -879,14 +941,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                             type="checkbox"
                             label="Preview Lesson (students can watch without enrolling)"
                             checked={lesson.isPreview}
-                            onChange={(e) =>
-                              updateLesson(
-                                section._id,
-                                lesson._id,
-                                "isPreview",
-                                e.target.checked
-                              )
-                            }
+                            onChange={(e) => updateLesson(section._id, lesson._id, "isPreview", e.target.checked)}
                           />
                         </Card.Body>
                       </Card>
@@ -906,20 +961,12 @@ export const CourseBuilder = ({ course, onSave }) => {
         </Col>
       </Row>
 
-      {/* ========== ADD QUIZ MODAL HERE (AT THE END) ========== */}
-      <Modal
-        show={showQuizModal}
-        onHide={() => setShowQuizModal(false)}
-        size="xl"
-        scrollable
-      >
+      {/* Quiz Modal */}
+      <Modal show={showQuizModal} onHide={() => setShowQuizModal(false)} size="xl" scrollable>
         <Modal.Header closeButton>
           <Modal.Title>
             <i className="bi bi-patch-question me-2"></i>
-            {lessonQuizzes[currentLesson?._id]
-              ? "Edit Quiz"
-              : "Create Quiz"}{" "}
-            for {currentLesson?.title}
+            {lessonQuizzes[currentLesson?._id] ? "Edit Quiz" : "Create Quiz"} for {currentLesson?.title}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -931,12 +978,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                   <Form.Control
                     type="text"
                     value={quizData.title}
-                    onChange={(e) =>
-                      setQuizData((prev) => ({
-                        ...prev,
-                        title: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setQuizData((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="Enter quiz title"
                   />
                 </Form.Group>
@@ -948,12 +990,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                     type="number"
                     min="1"
                     value={quizData.timeLimit}
-                    onChange={(e) =>
-                      setQuizData((prev) => ({
-                        ...prev,
-                        timeLimit: parseInt(e.target.value),
-                      }))
-                    }
+                    onChange={(e) => setQuizData((prev) => ({ ...prev, timeLimit: parseInt(e.target.value) }))}
                   />
                 </Form.Group>
               </Col>
@@ -965,12 +1002,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                 as="textarea"
                 rows={2}
                 value={quizData.description}
-                onChange={(e) =>
-                  setQuizData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
+                onChange={(e) => setQuizData((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Enter quiz description"
               />
             </Form.Group>
@@ -984,12 +1016,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                     min="0"
                     max="100"
                     value={quizData.passingScore}
-                    onChange={(e) =>
-                      setQuizData((prev) => ({
-                        ...prev,
-                        passingScore: parseInt(e.target.value),
-                      }))
-                    }
+                    onChange={(e) => setQuizData((prev) => ({ ...prev, passingScore: parseInt(e.target.value) }))}
                   />
                 </Form.Group>
               </Col>
@@ -1001,12 +1028,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                     min="1"
                     max="10"
                     value={quizData.maxAttempts}
-                    onChange={(e) =>
-                      setQuizData((prev) => ({
-                        ...prev,
-                        maxAttempts: parseInt(e.target.value),
-                      }))
-                    }
+                    onChange={(e) => setQuizData((prev) => ({ ...prev, maxAttempts: parseInt(e.target.value) }))}
                   />
                 </Form.Group>
               </Col>
@@ -1016,19 +1038,13 @@ export const CourseBuilder = ({ course, onSave }) => {
                     type="checkbox"
                     label="Mandatory"
                     checked={quizData.isMandatory}
-                    onChange={(e) =>
-                      setQuizData((prev) => ({
-                        ...prev,
-                        isMandatory: e.target.checked,
-                      }))
-                    }
+                    onChange={(e) => setQuizData((prev) => ({ ...prev, isMandatory: e.target.checked }))}
                     className="mt-4"
                   />
                 </Form.Group>
               </Col>
             </Row>
 
-            {/* Questions Section */}
             <div className="mb-4">
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <h5>Questions ({quizData.questions.length})</h5>
@@ -1041,11 +1057,7 @@ export const CourseBuilder = ({ course, onSave }) => {
                   >
                     + Multiple Choice
                   </Button>
-                  <Button
-                    variant="outline-secondary"
-                    size="sm"
-                    onClick={() => addQuestion("theory")}
-                  >
+                  <Button variant="outline-secondary" size="sm" onClick={() => addQuestion("theory")}>
                     + Theory Question
                   </Button>
                 </div>
@@ -1065,13 +1077,10 @@ export const CourseBuilder = ({ course, onSave }) => {
                           <span>
                             Q{index + 1}: {question.question || "New Question"}
                             <Badge bg="secondary" className="ms-2">
-                              {question.type === "multiple_choice"
-                                ? "Multiple Choice"
-                                : "Theory"}
+                              {question.type === "multiple_choice" ? "Multiple Choice" : "Theory"}
                             </Badge>
                             <Badge bg="primary" className="ms-1">
-                              {question.points} pt
-                              {question.points !== 1 ? "s" : ""}
+                              {question.points} pt{question.points !== 1 ? "s" : ""}
                             </Badge>
                           </span>
                           <div className="d-flex gap-1">

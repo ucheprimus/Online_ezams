@@ -2,33 +2,66 @@
 import React, { useEffect, useRef } from 'react';
 
 const YouTubePlayer = ({ videoId, onVideoEnd }) => {
+  const playerRef = useRef(null);
   const iframeRef = useRef(null);
 
   useEffect(() => {
-    const iframe = iframeRef.current;
-    
-    const handleMessage = (event) => {
-      // Handle YouTube player events
-      if (event.origin !== 'https://www.youtube.com') return;
-      
-      try {
-        const data = JSON.parse(event.data);
-        if (data.event === 'onStateChange' && data.info === 0) {
-          // Video ended
-          console.log('Video ended via message');
-          if (onVideoEnd) onVideoEnd();
-        }
-      } catch (e) {
-        // Ignore non-JSON messages
-      }
+    // Load YouTube IFrame API
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+
+    // Initialize player when API is ready
+    window.onYouTubeIframeAPIReady = () => {
+      initializePlayer();
     };
 
-    window.addEventListener('message', handleMessage);
-    
+    // If API is already loaded, initialize immediately
+    if (window.YT && window.YT.Player) {
+      initializePlayer();
+    }
+
+    function initializePlayer() {
+      playerRef.current = new window.YT.Player(iframeRef.current, {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1,
+          modestbranding: 1,
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+      console.log('✅ YouTube player ready');
+    }
+
+    function onPlayerStateChange(event) {
+      // Video ended (state = 0)
+      if (event.data === window.YT.PlayerState.ENDED) {
+        console.log('✅ Video ended - triggering onVideoEnd callback');
+        if (onVideoEnd) {
+          onVideoEnd();
+        }
+      }
+    }
+
     return () => {
-      window.removeEventListener('message', handleMessage);
+      // Cleanup: destroy player when component unmounts
+      if (playerRef.current && playerRef.current.destroy) {
+        playerRef.current.destroy();
+      }
     };
-  }, [onVideoEnd]);
+  }, [videoId, onVideoEnd]);
 
   // Fallback if no videoId
   if (!videoId) {
@@ -44,14 +77,7 @@ const YouTubePlayer = ({ videoId, onVideoEnd }) => {
 
   return (
     <div className="ratio ratio-16x9">
-      <iframe
-        ref={iframeRef}
-        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&rel=0&modestbranding=1`}
-        title="YouTube video player"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        style={{ border: 'none', borderRadius: '8px' }}
-      ></iframe>
+      <div ref={iframeRef}></div>
     </div>
   );
 };

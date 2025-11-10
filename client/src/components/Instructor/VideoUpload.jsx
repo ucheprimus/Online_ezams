@@ -92,22 +92,24 @@ const VideoUpload = ({
     event.target.value = ''; // Reset file input
   };
 
-  const handleDeleteVideo = async () => {
-    if (!window.confirm("Are you sure you want to delete this video?")) return;
+const handleDeleteVideo = async () => {
+  if (!window.confirm("Are you sure you want to delete this video?")) return;
 
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(
-        `http://localhost:5000/api/upload/video/${currentVideo._id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      onVideoDeleted();
-    } catch (error) {
-      console.error("Error deleting video:", error);
-      setError("Failed to delete video: " + error.message);
-    }
-  };
+  try {
+    const token = localStorage.getItem("token");
+    
+    // Use filename instead of _id for deletion
+    await axios.delete(
+      `http://localhost:5000/api/upload/video/${currentVideo.filename}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    onVideoDeleted();
+  } catch (error) {
+    console.error("Error deleting video:", error);
+    setError("Failed to delete video: " + (error.response?.data?.message || error.message));
+  }
+};
 
   if (currentVideo) {
     return (

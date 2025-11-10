@@ -6,7 +6,8 @@ const QuizAttempt = require("../models/QuizAttempt");
 const { auth } = require("../middleware/auth");
 const axios = require("axios"); // ADD THIS FOR PROGRESS INTEGRATION
 
-// Enhanced Auto-grading function with theory question support
+
+// FIXED: Enhanced Auto-grading function with proper field handling
 const evaluateQuiz = (submittedAnswers, quizQuestions) => {
   console.log("🔍 Starting evaluation...");
   console.log("📝 Submitted answers:", submittedAnswers);
@@ -44,11 +45,14 @@ const evaluateQuiz = (submittedAnswers, quizQuestions) => {
       `✅ Question ${index} result: ${isCorrect ? "Correct" : "Incorrect"}`
     );
 
+    // FIXED: Ensure all required fields are explicitly set
     return {
-      ...answer,
+      questionIndex: index, // Explicitly set questionIndex
+      selectedOption: answer.selectedOption || '',
+      textAnswer: answer.textAnswer || '',
       isCorrect,
-      correctAnswer: question.correctAnswer,
-      explanation: question.explanation,
+      correctAnswer: question.correctAnswer || '', // Ensure this is never undefined
+      explanation: question.explanation || ''
     };
   });
 
@@ -65,6 +69,7 @@ const evaluateQuiz = (submittedAnswers, quizQuestions) => {
   };
 };
 
+// FIXED: Quiz attempt route with better validation
 router.post("/:id/attempt", auth, async (req, res) => {
   console.log("⏰ Quiz submission started at:", new Date().toISOString());
 
@@ -135,29 +140,52 @@ router.post("/:id/attempt", auth, async (req, res) => {
     // Save attempt
     console.log("💾 Saving quiz attempt...");
 
-    
-// Ensure all answer fields are properly formatted
-const formattedAnswers = evaluation.evaluatedAnswers.map(answer => ({
-  questionIndex: answer.questionIndex,
-  selectedOption: answer.selectedOption || '',
-  textAnswer: answer.textAnswer || '',
-  isCorrect: answer.isCorrect,
-  correctAnswer: answer.correctAnswer || '',
-  explanation: answer.explanation || ''
-}));
+    // FIXED: Better validation before saving
+    const formattedAnswers = evaluation.evaluatedAnswers.map((answer, index) => {
+      // Validate that all required fields are present
+      const validatedAnswer = {
+        questionIndex: answer.questionIndex !== undefined ? answer.questionIndex : index,
+        selectedOption: answer.selectedOption || '',
+        textAnswer: answer.textAnswer || '',
+        isCorrect: Boolean(answer.isCorrect),
+        correctAnswer: answer.correctAnswer || '', // Ensure this is never undefined
+        explanation: answer.explanation || ''
+      };
 
-console.log('📝 Formatted answers for saving:', formattedAnswers);
+      // Debug log for any missing fields
+      if (!validatedAnswer.correctAnswer) {
+        console.warn(`⚠️ Question ${index} has empty correctAnswer`);
+      }
 
-const attempt = new QuizAttempt({
-  studentId: req.user.id,
-  quizId: quiz._id,
-  lessonId: lessonId || quiz.lessonId,
-  answers: formattedAnswers, // Use formatted answers
-  score: evaluation.score,
-  passed,
-  timeSpent,
-  attemptNumber
-});
+      return validatedAnswer;
+    });
+
+    console.log('📝 Formatted answers for saving:', formattedAnswers);
+
+    // Final validation check
+    const hasInvalidAnswers = formattedAnswers.some(answer => 
+      answer.correctAnswer === undefined || 
+      answer.questionIndex === undefined
+    );
+
+    if (hasInvalidAnswers) {
+      console.error('❌ Invalid answers detected:', formattedAnswers);
+      return res.status(400).json({
+        message: 'Quiz configuration error: Some answers are missing required fields'
+      });
+    }
+
+    const attempt = new QuizAttempt({
+      studentId: req.user.id,
+      quizId: quiz._id,
+      lessonId: lessonId || quiz.lessonId,
+      answers: formattedAnswers,
+      score: evaluation.score,
+      passed,
+      timeSpent: timeSpent || 0,
+      attemptNumber
+    });
+
     await attempt.save();
     console.log("✅ Quiz attempt saved");
 
@@ -187,6 +215,7 @@ const attempt = new QuizAttempt({
     console.log("⏰ Quiz submission completed at:", new Date().toISOString());
 
     res.json({
+      success: true,
       score: evaluation.score,
       passed,
       correctAnswers: evaluation.correctAnswers,
@@ -202,9 +231,20 @@ const attempt = new QuizAttempt({
   } catch (error) {
     console.error("❌ Quiz attempt error:", error);
     console.error("❌ Error stack:", error.stack);
-    res.status(400).json({ message: error.message });
+    
+    // More specific error messages
+    let errorMessage = error.message;
+    if (error.name === 'ValidationError') {
+      errorMessage = 'Quiz validation failed: ' + Object.values(error.errors).map(e => e.message).join(', ');
+    }
+    
+    res.status(400).json({ 
+      success: false,
+      message: errorMessage 
+    });
   }
 });
+
 
 // Create quiz (Instructor only)
 router.post("/", auth, async (req, res) => {
@@ -231,7 +271,6 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// Get quiz for a lesson
 router.get("/lesson/:lessonId", auth, async (req, res) => {
   try {
     console.log("🔍 Fetching quiz for lesson:", req.params.lessonId);
@@ -241,8 +280,9 @@ router.get("/lesson/:lessonId", auth, async (req, res) => {
 
     if (!quiz) {
       console.log("❌ No quiz found for lesson:", req.params.lessonId);
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
+        exists: false,
         message: "No quiz available for this lesson",
       });
     }
@@ -258,6 +298,7 @@ router.get("/lesson/:lessonId", auth, async (req, res) => {
     console.log("✅ Quiz found:", quiz.title);
     res.json({
       success: true,
+      exists: true,
       ...quiz.toObject(),
       userAttempts: {
         previous: previousAttempts,
@@ -273,6 +314,7 @@ router.get("/lesson/:lessonId", auth, async (req, res) => {
     });
   }
 });
+
 
 // Get quiz attempts for student
 router.get("/:id/attempts", auth, async (req, res) => {

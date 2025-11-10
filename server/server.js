@@ -10,6 +10,10 @@ const progressRoutes = require('./routes/progress');
 const analyticsRoutes = require('./routes/analytics');
 const commentRoutes = require('./routes/comments');
 const uploadRoutes = require('./routes/upload');
+const path = require('path'); // ADD THIS LINE
+const instructorRoutes = require('./routes/instructor');
+
+const dashboardRoutes = require('./routes/dashboard'); // ADD THIS
 
 
 
@@ -69,7 +73,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/instructor', instructorRoutes);
+app.use('/api/dashboard', dashboardRoutes); // ADD THIS
+
 
 app.use('/api', commentRoutes);
 

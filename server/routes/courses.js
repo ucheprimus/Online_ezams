@@ -6,6 +6,10 @@ const Progress = require("../models/Progress");
 const { auth } = require("../middleware/auth");
 const { calculateAndUpdateProgress } = require("../utils/progressCalculator");
 const router = express.Router();
+// Add this helper function at the top of your routes file
+const fs = require('fs');
+const path = require('path');
+
 
 // ===== ADD THIS AS THE VERY FIRST ROUTE =====
 // Simple test route to verify API is working
@@ -889,9 +893,30 @@ router.post('/:id/sections/:sectionId/lessons', auth, async (req, res) => {
   }
 });
 
+
+
+const deleteVideoFile = (videoFile) => {
+  if (!videoFile?.filename) return;
+  
+  try {
+    const uploadsDir = 'uploads/videos';
+    const filePath = path.join(uploadsDir, videoFile.filename);
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log('✅ Deleted old video file:', videoFile.filename);
+    }
+  } catch (error) {
+    console.error('❌ Error deleting video file:', error);
+  }
+};
+
 // PUT /api/courses/:id/sections/:sectionId/lessons/:lessonId - Update specific lesson
 router.put('/:id/sections/:sectionId/lessons/:lessonId', auth, async (req, res) => {
   try {
+    console.log('📥 Updating lesson:', req.params.lessonId);
+    console.log('📦 Update data received:', req.body);
+
     const course = await Course.findById(req.params.id);
     
     if (!course) {
@@ -900,6 +925,45 @@ router.put('/:id/sections/:sectionId/lessons/:lessonId', auth, async (req, res) 
 
     if (course.instructor.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to edit this course' });
+    }
+
+    // Get the existing lesson data BEFORE updating
+    const section = course.curriculum.id(req.params.sectionId);
+    if (!section) {
+      return res.status(404).json({ success: false, message: 'Section not found' });
+    }
+
+    const oldLesson = section.lessons.id(req.params.lessonId);
+    if (!oldLesson) {
+      return res.status(404).json({ success: false, message: 'Lesson not found' });
+    }
+
+    console.log('📋 Old lesson data:', {
+      videoType: oldLesson.videoType,
+      videoId: oldLesson.videoId,
+      videoUrl: oldLesson.videoUrl,
+      hasVideoFile: !!oldLesson.videoFile
+    });
+
+    // 🔥 NEW: Check if we need to delete old video
+    const newVideoType = req.body.videoType;
+    const oldVideoType = oldLesson.videoType;
+
+    // Case 1: Switching from upload to YouTube - delete old video
+    if (oldVideoType === 'upload' && newVideoType === 'youtube' && oldLesson.videoFile) {
+      console.log('🗑️ Switching to YouTube, deleting old uploaded video');
+      deleteVideoFile(oldLesson.videoFile);
+    }
+
+    // Case 2: Replacing an uploaded video with a different upload
+    if (oldVideoType === 'upload' && newVideoType === 'upload') {
+      const oldFilename = oldLesson.videoFile?.filename;
+      const newFilename = req.body.videoFile?.filename;
+      
+      if (oldFilename && newFilename && oldFilename !== newFilename) {
+        console.log('🗑️ Replacing uploaded video, deleting old one');
+        deleteVideoFile(oldLesson.videoFile);
+      }
     }
 
     // Validate lesson data
@@ -912,17 +976,38 @@ router.put('/:id/sections/:sectionId/lessons/:lessonId', auth, async (req, res) 
       });
     }
 
-    // Transform video data for your model
-    const updates = { ...req.body };
-    
-    // Build videoUrl from videoId if provided
-    if (req.body.videoType === 'youtube' && req.body.videoId) {
-      updates.videoUrl = `https://www.youtube.com/watch?v=${req.body.videoId}`;
-    }
+    // Prepare update data
+    const updates = {
+      title: req.body.title,
+      description: req.body.description,
+      duration: req.body.duration,
+      videoType: req.body.videoType,
+      videoId: req.body.videoId || '',
+      videoUrl: req.body.videoUrl || '',
+      videoFile: req.body.videoFile || null,
+      isPreview: req.body.isPreview,
+      content: req.body.content,
+      resources: req.body.resources,
+      order: req.body.order
+    };
 
-    const updatedLesson = course.updateLesson(req.params.sectionId, req.params.lessonId, updates);
+    console.log('📤 Applying updates:', updates);
+
+    // Update the lesson
+    const updatedLesson = course.updateLesson(
+      req.params.sectionId, 
+      req.params.lessonId, 
+      updates
+    );
+
+    // Recalculate total hours
     course.calculateTotalHours();
+    
+    // Save course
     await course.save();
+
+    console.log('✅ Lesson updated successfully');
+    console.log('🔍 Updated lesson videoUrl:', updatedLesson.videoUrl);
 
     res.json({
       success: true,
@@ -931,7 +1016,7 @@ router.put('/:id/sections/:sectionId/lessons/:lessonId', auth, async (req, res) 
     });
 
   } catch (error) {
-    console.error('Update lesson error:', error);
+    console.error('❌ Update lesson error:', error);
     
     if (error.message === 'Section not found' || error.message === 'Lesson not found') {
       return res.status(404).json({ 

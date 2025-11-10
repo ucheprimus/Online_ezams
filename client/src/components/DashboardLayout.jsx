@@ -1,8 +1,18 @@
 // client/src/components/DashboardLayout.jsx
-import { useState, useEffect } from 'react';
-import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
-import { Container, Row, Col, Nav, Badge, Button, Modal } from 'react-bootstrap';
+import { useState, useEffect } from "react";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import {
+  Container,
+  Row,
+  Col,
+  Nav,
+  Badge,
+  Button,
+  Modal,
+  Spinner,
+} from "react-bootstrap";
+import axios from "axios";
 
 const DashboardLayout = () => {
   const { user, isInstructor, logout } = useAuth();
@@ -11,35 +21,138 @@ const DashboardLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const isActive = (path) => location.pathname === path;
+
+  // Fetch real dashboard data
+  useEffect(() => {
+    fetchDashboardData();
+  }, [user]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+
+      const response = await axios.get(
+        "http://localhost:5000/api/dashboard/summary",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setDashboardData(response.data);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      // Set fallback empty data
+      setDashboardData({
+        instructor: { courseCount: 0, studentCount: 0, messageCount: 0 },
+        student: {
+          enrolledCount: 0,
+          progressCount: 0,
+          certificateCount: 0,
+          wishlistCount: 0,
+        },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Close mobile sidebar when route changes
   useEffect(() => {
     setMobileOpen(false);
   }, [location]);
 
+  // Instructor links with real data
   const instructorLinks = [
-    { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
-    { path: '/dashboard/my-courses', icon: '📚', label: 'My Courses', badge: '5' },
-    { path: '/dashboard/create-course', icon: '➕', label: 'Create Course', badge: null },
-    { path: '/dashboard/students', icon: '👥', label: 'Students', badge: '12' },
-    { path: '/dashboard/analytics', icon: '📈', label: 'Analytics', badge: null },
-    { path: '/dashboard/messages', icon: '💬', label: 'Messages', badge: '3' }
+    { path: "/dashboard", icon: "📊", label: "Overview", badge: null },
+    {
+      path: "/dashboard/my-courses",
+      icon: "📚",
+      label: "My Courses",
+      badge: loading
+        ? "..."
+        : dashboardData?.instructor?.courseCount?.toString() || "0",
+    },
+    {
+      path: "/dashboard/create-course",
+      icon: "➕",
+      label: "Create Course",
+      badge: null,
+    },
+    {
+      path: "/dashboard/students",
+      icon: "👥",
+      label: "Students",
+      badge: loading
+        ? "..."
+        : dashboardData?.instructor?.studentCount?.toString() || "0",
+    },
+    {
+      path: "/dashboard/analytics",
+      icon: "📈",
+      label: "Analytics",
+      badge: null,
+    },
+    {
+      path: "/dashboard/messages",
+      icon: "💬",
+      label: "Messages",
+      badge: loading
+        ? "..."
+        : dashboardData?.instructor?.messageCount?.toString() || "0",
+    },
   ];
 
+  // Student links with real data
   const studentLinks = [
-    { path: '/dashboard', icon: '📊', label: 'Overview', badge: null },
-    { path: '/dashboard/my-courses', icon: '📖', label: 'My Courses', badge: '4' },
-    { path: '/dashboard/browse', icon: '🔍', label: 'Browse Courses', badge: null },
-    { path: '/dashboard/progress', icon: '✅', label: 'Progress', badge: '2' },
-    { path: '/dashboard/certificates', icon: '🏆', label: 'Certificates', badge: '1' },
-    { path: '/dashboard/wishlist', icon: '❤️', label: 'Wishlist', badge: '3' }
+    { path: "/dashboard", icon: "📊", label: "Overview", badge: null },
+    {
+      path: "/dashboard/my-courses",
+      icon: "📖",
+      label: "My Courses",
+      badge: loading
+        ? "..."
+        : dashboardData?.student?.enrolledCount?.toString() || "0",
+    },
+    {
+      path: "/dashboard/browse",
+      icon: "🔍",
+      label: "Browse Courses",
+      badge: null,
+    },
+    {
+      path: "/dashboard/progress",
+      icon: "✅",
+      label: "Progress",
+      badge: loading
+        ? "..."
+        : dashboardData?.student?.progressCount?.toString() || "0",
+    },
+    {
+      path: "/dashboard/certificates",
+      icon: "🏆",
+      label: "Certificates",
+      badge: loading
+        ? "..."
+        : dashboardData?.student?.certificateCount?.toString() || "0",
+    },
+    {
+      path: "/dashboard/wishlist",
+      icon: "❤️",
+      label: "Wishlist",
+      badge: loading
+        ? "..."
+        : dashboardData?.student?.wishlistCount?.toString() || "0",
+    },
   ];
 
   const commonLinks = [
-    { path: '/dashboard/profile', icon: '👤', label: 'Profile', badge: null },
-    { path: '/dashboard/settings', icon: '⚙️', label: 'Settings', badge: null }
+    { path: "/dashboard/profile", icon: "👤", label: "Profile", badge: null },
+    { path: "/dashboard/settings", icon: "⚙️", label: "Settings", badge: null },
   ];
 
   const links = isInstructor ? instructorLinks : studentLinks;
@@ -47,23 +160,54 @@ const DashboardLayout = () => {
   const handleLogout = () => {
     logout();
     setShowLogoutModal(false);
-    navigate('/');
+    navigate("/");
   };
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
   };
 
+  // Render badge with loading state
+  const renderBadge = (badge) => {
+    if (badge === null) return null;
+    if (badge === "...") {
+      return (
+        <span className="nav-badge loading">
+          <Spinner animation="border" size="sm" />
+        </span>
+      );
+    }
+    return <span className="nav-badge">{badge}</span>;
+  };
+
+  const renderBadgeCollapsed = (badge) => {
+    if (badge === null) return null;
+    if (badge === "...") {
+      return (
+        <span className="nav-badge-collapsed loading">
+          <Spinner animation="border" size="sm" />
+        </span>
+      );
+    }
+    return <span className="nav-badge-collapsed">{badge}</span>;
+  };
+
   return (
     <div className="dashboard-layout">
       {/* Logout Confirmation Modal */}
-      <Modal show={showLogoutModal} onHide={() => setShowLogoutModal(false)} centered>
+      <Modal
+        show={showLogoutModal}
+        onHide={() => setShowLogoutModal(false)}
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>Confirm Logout</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>Are you sure you want to logout?</p>
-          <p className="text-muted small">You'll need to login again to access your dashboard.</p>
+          <p className="text-muted small">
+            You'll need to login again to access your dashboard.
+          </p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowLogoutModal(false)}>
@@ -91,7 +235,7 @@ const DashboardLayout = () => {
           </div>
           <div className="mobile-user">
             <div className="user-avatar-sm">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
           </div>
         </div>
@@ -99,7 +243,7 @@ const DashboardLayout = () => {
 
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div 
+        <div
           className="sidebar-overlay d-lg-none"
           onClick={() => setMobileOpen(false)}
         />
@@ -108,11 +252,13 @@ const DashboardLayout = () => {
       <Container fluid className="dashboard-container">
         <Row className="g-0">
           {/* Desktop Sidebar */}
-          <Col 
-            lg={collapsed ? 1 : 2} 
+          <Col
+            lg={collapsed ? 1 : 2}
             className="sidebar-column d-none d-lg-block"
           >
-            <div className={`dashboard-sidebar ${collapsed ? 'collapsed' : ''}`}>
+            <div
+              className={`dashboard-sidebar ${collapsed ? "collapsed" : ""}`}
+            >
               {/* Brand Logo */}
               <div className="sidebar-brand">
                 {!collapsed ? (
@@ -130,18 +276,18 @@ const DashboardLayout = () => {
                 {!collapsed ? (
                   <div className="user-info">
                     <div className="user-avatar">
-                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
                     </div>
                     <div className="user-details">
-                      <h6 className="user-name">{user?.name || 'User'}</h6>
+                      <h6 className="user-name">{user?.name || "User"}</h6>
                       <Badge bg="primary" className="user-role-badge">
-                        {user?.role || 'Student'}
+                        {user?.role || "Student"}
                       </Badge>
                     </div>
                   </div>
                 ) : (
                   <div className="user-avatar-collapsed">
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </div>
                 )}
               </div>
@@ -153,22 +299,18 @@ const DashboardLayout = () => {
                     key={link.path}
                     as={Link}
                     to={link.path}
-                    className={`nav-item ${isActive(link.path) ? 'active' : ''}`}
+                    className={`nav-item ${
+                      isActive(link.path) ? "active" : ""
+                    }`}
                   >
-                    <div className="nav-icon">
-                      {link.icon}
-                    </div>
+                    <div className="nav-icon">{link.icon}</div>
                     {!collapsed && (
                       <div className="nav-content">
                         <span className="nav-label">{link.label}</span>
-                        {link.badge && (
-                          <span className="nav-badge">{link.badge}</span>
-                        )}
+                        {renderBadge(link.badge)}
                       </div>
                     )}
-                    {collapsed && link.badge && (
-                      <span className="nav-badge-collapsed">{link.badge}</span>
-                    )}
+                    {collapsed && renderBadgeCollapsed(link.badge)}
                   </Nav.Link>
                 ))}
               </Nav>
@@ -183,11 +325,11 @@ const DashboardLayout = () => {
                         key={link.path}
                         as={Link}
                         to={link.path}
-                        className={`nav-item ${isActive(link.path) ? 'active' : ''}`}
+                        className={`nav-item ${
+                          isActive(link.path) ? "active" : ""
+                        }`}
                       >
-                        <div className="nav-icon">
-                          {link.icon}
-                        </div>
+                        <div className="nav-icon">{link.icon}</div>
                         <div className="nav-content">
                           <span className="nav-label">{link.label}</span>
                         </div>
@@ -202,7 +344,9 @@ const DashboardLayout = () => {
                 {!collapsed && <div className="section-label">Actions</div>}
                 <Nav className="sidebar-nav flex-column">
                   <Nav.Link
-                    className={`nav-item logout-item ${collapsed ? 'collapsed' : ''}`}
+                    className={`nav-item logout-item ${
+                      collapsed ? "collapsed" : ""
+                    }`}
                     onClick={handleLogoutClick}
                   >
                     <div className="nav-icon">
@@ -220,9 +364,11 @@ const DashboardLayout = () => {
                 <button
                   className="sidebar-toggle-btn"
                   onClick={() => setCollapsed(!collapsed)}
-                  title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
-                  <i className={`bi bi-chevron-${collapsed ? 'right' : 'left'}`}></i>
+                  <i
+                    className={`bi bi-chevron-${collapsed ? "right" : "left"}`}
+                  ></i>
                   {!collapsed && <span>Collapse</span>}
                 </button>
               </div>
@@ -230,17 +376,19 @@ const DashboardLayout = () => {
           </Col>
 
           {/* Mobile Sidebar */}
-          <div className={`mobile-sidebar d-lg-none ${mobileOpen ? 'open' : ''}`}>
+          <div
+            className={`mobile-sidebar d-lg-none ${mobileOpen ? "open" : ""}`}
+          >
             <div className="mobile-sidebar-content">
               <div className="sidebar-header">
                 <div className="user-info">
                   <div className="user-avatar">
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </div>
                   <div className="user-details">
-                    <h6 className="user-name">{user?.name || 'User'}</h6>
+                    <h6 className="user-name">{user?.name || "User"}</h6>
                     <Badge bg="primary" className="user-role-badge">
-                      {user?.role || 'Student'}
+                      {user?.role || "Student"}
                     </Badge>
                   </div>
                   <Button
@@ -260,17 +408,15 @@ const DashboardLayout = () => {
                     key={link.path}
                     as={Link}
                     to={link.path}
-                    className={`nav-item ${isActive(link.path) ? 'active' : ''}`}
+                    className={`nav-item ${
+                      isActive(link.path) ? "active" : ""
+                    }`}
                     onClick={() => setMobileOpen(false)}
                   >
-                    <div className="nav-icon">
-                      {link.icon}
-                    </div>
+                    <div className="nav-icon">{link.icon}</div>
                     <div className="nav-content">
                       <span className="nav-label">{link.label}</span>
-                      {link.badge && (
-                        <span className="nav-badge">{link.badge}</span>
-                      )}
+                      {renderBadge(link.badge)}
                     </div>
                   </Nav.Link>
                 ))}
@@ -284,12 +430,12 @@ const DashboardLayout = () => {
                       key={link.path}
                       as={Link}
                       to={link.path}
-                      className={`nav-item ${isActive(link.path) ? 'active' : ''}`}
+                      className={`nav-item ${
+                        isActive(link.path) ? "active" : ""
+                      }`}
                       onClick={() => setMobileOpen(false)}
                     >
-                      <div className="nav-icon">
-                        {link.icon}
-                      </div>
+                      <div className="nav-icon">{link.icon}</div>
                       <div className="nav-content">
                         <span className="nav-label">{link.label}</span>
                       </div>
@@ -321,10 +467,7 @@ const DashboardLayout = () => {
           </div>
 
           {/* Main Content Area */}
-          <Col 
-            lg={collapsed ? 11 : 10} 
-            className="main-content-column"
-          >
+          <Col lg={collapsed ? 11 : 10} className="main-content-column">
             <div className="main-content-wrapper">
               <Outlet />
             </div>

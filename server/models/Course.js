@@ -80,7 +80,25 @@ const courseSchema = new mongoose.Schema({
         required: true
       },
       description: String,
-      videoUrl: String,
+      // 🔥 UPDATED: Enhanced video fields
+      videoType: {
+        type: String,
+        enum: ['youtube', 'upload', ''],
+        default: 'youtube'
+      },
+      videoId: {
+        type: String,
+        default: ''
+      },
+      videoUrl: {
+        type: String,
+        default: ''
+      },
+      videoFile: {
+        type: mongoose.Schema.Types.Mixed, // Stores the complete video object
+        default: null
+      },
+      // End video fields
       duration: Number,
       order: Number,
       isPreview: {
@@ -154,7 +172,10 @@ courseSchema.methods.addLesson = function(sectionId, lessonData) {
   const newLesson = {
     title: lessonData.title || 'New Lesson',
     description: lessonData.description || '',
+    videoType: lessonData.videoType || 'youtube',
+    videoId: lessonData.videoId || '',
     videoUrl: lessonData.videoUrl || '',
+    videoFile: lessonData.videoFile || null,
     duration: lessonData.duration || 0,
     order: section.lessons.length,
     isPreview: lessonData.isPreview || false,
@@ -178,8 +199,13 @@ courseSchema.methods.updateLesson = function(sectionId, lessonId, updates) {
     throw new Error('Lesson not found');
   }
   
-  // Update only provided fields
-  const allowedFields = ['title', 'description', 'videoUrl', 'duration', 'order', 'isPreview', 'content', 'resources'];
+  // 🔥 UPDATED: Include all video-related fields
+  const allowedFields = [
+    'title', 'description', 'videoType', 'videoId', 
+    'videoUrl', 'videoFile', 'duration', 'order', 
+    'isPreview', 'content', 'resources'
+  ];
+  
   allowedFields.forEach(field => {
     if (updates[field] !== undefined) {
       lesson[field] = updates[field];
@@ -217,11 +243,9 @@ courseSchema.methods.moveSection = function(sectionId, direction) {
   }
 
   if (direction === 'up' && sectionIndex > 0) {
-    // Swap with previous section
     [this.curriculum[sectionIndex - 1], this.curriculum[sectionIndex]] = 
     [this.curriculum[sectionIndex], this.curriculum[sectionIndex - 1]];
   } else if (direction === 'down' && sectionIndex < this.curriculum.length - 1) {
-    // Swap with next section
     [this.curriculum[sectionIndex], this.curriculum[sectionIndex + 1]] = 
     [this.curriculum[sectionIndex + 1], this.curriculum[sectionIndex]];
   }
@@ -245,11 +269,9 @@ courseSchema.methods.moveLesson = function(sectionId, lessonId, direction) {
   }
 
   if (direction === 'up' && lessonIndex > 0) {
-    // Swap with previous lesson
     [section.lessons[lessonIndex - 1], section.lessons[lessonIndex]] = 
     [section.lessons[lessonIndex], section.lessons[lessonIndex - 1]];
   } else if (direction === 'down' && lessonIndex < section.lessons.length - 1) {
-    // Swap with next lesson
     [section.lessons[lessonIndex], section.lessons[lessonIndex + 1]] = 
     [section.lessons[lessonIndex + 1], section.lessons[lessonIndex]];
   }
@@ -296,24 +318,17 @@ courseSchema.methods.validateLesson = function(lessonData) {
     errors.push('Lesson duration must be at least 1 minute');
   }
   
-  if (lessonData.videoUrl && !this.isValidVideoUrl(lessonData.videoUrl)) {
-    errors.push('Invalid video URL format');
+  // 🔥 UPDATED: Validate video data based on type
+  if (lessonData.videoType === 'youtube' && !lessonData.videoId && !lessonData.videoUrl) {
+    errors.push('YouTube video ID or URL is required');
+  }
+  
+  if (lessonData.videoType === 'upload' && !lessonData.videoUrl && !lessonData.videoFile) {
+    errors.push('Video file is required for uploaded videos');
   }
   
   return errors;
 };
-
-// Helper method to validate video URLs
-courseSchema.methods.isValidVideoUrl = function(url) {
-  if (!url) return true; // Empty URL is valid (optional field)
-  
-  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-  const vimeoRegex = /^(https?:\/\/)?(www\.)?vimeo\.com\/(\d+)/;
-  
-  return youtubeRegex.test(url) || vimeoRegex.test(url);
-};
-
-// ===== EXISTING METHODS =====
 
 // Update average rating when new ratings are added
 courseSchema.methods.updateAverageRating = function() {

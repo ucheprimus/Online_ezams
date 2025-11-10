@@ -14,6 +14,8 @@ import {
   Accordion,
   ProgressBar,
   Nav,
+    OverlayTrigger, // ADD THIS
+  Tooltip // ADD THIS
 } from "react-bootstrap";
 import axios from "axios";
 import YouTubePlayer from "../components/YouTubePlayer";
@@ -34,7 +36,7 @@ const LearnCourse = () => {
   const [videoLoading, setVideoLoading] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizResults, setQuizResults] = useState(null);
-  
+
   // Tab state
   const [activeTab, setActiveTab] = useState("content");
 
@@ -116,36 +118,35 @@ const LearnCourse = () => {
     }
   };
 
-const fetchQuizForLesson = async (lessonId) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(
-      `http://localhost:5000/api/quizzes/lesson/${lessonId}`,
-      { 
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 3000 // Shorter timeout
+  const fetchQuizForLesson = async (lessonId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `http://localhost:5000/api/quizzes/lesson/${lessonId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000, // Shorter timeout
+        }
+      );
+
+      if (response.data.success === false) {
+        console.log("No quiz available for this lesson");
+        setCurrentQuiz(null);
+        return;
       }
-    );
-    
-    if (response.data.success === false) {
-      console.log('No quiz available for this lesson');
+
+      setCurrentQuiz(response.data);
+      console.log("✅ Quiz loaded:", response.data.title);
+    } catch (error) {
+      // Silently handle 404 - it's normal if no quiz exists
+      if (error.response?.status === 404) {
+        console.log("No quiz available for this lesson");
+      } else {
+        console.error("Error fetching quiz:", error);
+      }
       setCurrentQuiz(null);
-      return;
     }
-    
-    setCurrentQuiz(response.data);
-    console.log('✅ Quiz loaded:', response.data.title);
-    
-  } catch (error) {
-    // Silently handle 404 - it's normal if no quiz exists
-    if (error.response?.status === 404) {
-      console.log('No quiz available for this lesson');
-    } else {
-      console.error('Error fetching quiz:', error);
-    }
-    setCurrentQuiz(null);
-  }
-};
+  };
 
   const markLessonComplete = async (lessonId) => {
     try {
@@ -251,62 +252,170 @@ const fetchQuizForLesson = async (lessonId) => {
     }, 500);
   };
 
+
+  const handleMarkComplete = async () => {
+    try {
+      if (!currentLesson) return;
+
+      // Check if lesson already completed
+      if (completedLessons.has(currentLesson._id.toString())) {
+        await markLessonIncomplete(currentLesson._id);
+        return;
+      }
+
+      // VALIDATION: Check if quiz exists and hasn't been passed
+      if (currentQuiz && !hasPassedQuizForCurrentLesson()) {
+        setError(
+          "Please complete the quiz first to mark this lesson as complete."
+        );
+        setShowQuiz(true); // Show quiz if not completed
+        return;
+      }
+
+      // VALIDATION: Check if video was watched (for quiz lessons)
+      if (currentQuiz && !hasVideoBeenWatched()) {
+        setError(
+          "Please watch the video completely before attempting the quiz."
+        );
+        return;
+      }
+
+      // All validations passed - mark complete
+      await markLessonComplete(currentLesson._id);
+    } catch (error) {
+      console.error("Error marking lesson complete:", error);
+      setError("Failed to update lesson status.");
+    }
+  };
+
+  // Helper function to check if user passed quiz for current lesson
+  const hasPassedQuizForCurrentLesson = () => {
+    if (!currentQuiz) return true; // No quiz means "passed"
+
+    // Check if there's a passed attempt for this quiz
+    // You might want to fetch this from your backend or maintain state
+    return quizResults?.passed || false;
+  };
+
+  // Helper function to track video completion
+  const [videoCompleted, setVideoCompleted] = useState(false);
+
   const handleVideoEnd = () => {
-    // Auto-show quiz if available, otherwise mark as complete
+    setVideoCompleted(true);
+
     if (currentQuiz) {
       setShowQuiz(true);
+      // Enable quiz but don't auto-complete
     } else {
+      // No quiz - auto-complete after video
       markLessonComplete(currentLesson._id);
     }
   };
 
-const handleQuizSubmit = async (answers, timeSpent) => {
-  try {
-    console.log('🔍 handleQuizSubmit called with:', {
-      answers: answers,
-      answersType: typeof answers,
-      answersIsArray: Array.isArray(answers),
-      answersStringified: JSON.stringify(answers)
-    });
+  const hasVideoBeenWatched = () => {
+    return videoCompleted;
+  };
 
-    const token = localStorage.getItem("token");
-    
-    // Ensure answers is a proper array
-    if (!Array.isArray(answers)) {
-      console.error('❌ Answers is not an array:', answers);
-      throw new Error('Invalid answers format');
+  // Update the mark complete button
+  const renderCompletionButton = () => {
+    const isCompleted = completedLessons.has(currentLesson._id.toString());
+
+    if (isCompleted) {
+      return (
+        <Button
+          variant="success"
+          onClick={() => markLessonIncomplete(currentLesson._id)}
+        >
+          <i className="bi bi-check-circle me-1"></i>
+          Completed
+        </Button>
+      );
     }
 
-    const response = await axios.post(
-      `http://localhost:5000/api/quizzes/${currentQuiz._id}/attempt`,
-      { 
-        answers, // This should be a proper JavaScript array
-        timeSpent,
-        lessonId: currentLesson._id
-      },
-      { 
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json' // Ensure JSON content type
-        },
-        timeout: 10000
-      }
+    let buttonVariant = "primary";
+    let buttonText = "Mark Complete";
+    let disabled = false;
+    let tooltip = "";
+
+    // Check conditions for completion
+    if (currentQuiz && !hasPassedQuizForCurrentLesson()) {
+      buttonVariant = "outline-secondary";
+      buttonText = "Complete Quiz First";
+      disabled = true;
+      tooltip = "You must pass the quiz to complete this lesson";
+    } else if (currentQuiz && !hasVideoBeenWatched()) {
+      buttonVariant = "outline-secondary";
+      buttonText = "Watch Video First";
+      disabled = true;
+      tooltip = "Please watch the complete video before marking as complete";
+    }
+
+    return (
+      <OverlayTrigger placement="top" overlay={<Tooltip>{tooltip}</Tooltip>}>
+        <span>
+          <Button
+            variant={buttonVariant}
+            onClick={handleMarkComplete}
+            disabled={disabled || !currentLesson}
+          >
+            <i className="bi bi-check-circle me-1"></i>
+            {buttonText}
+          </Button>
+        </span>
+      </OverlayTrigger>
     );
+  };
 
-    const result = response.data;
-    console.log('✅ Quiz submission successful:', result);
-    setQuizResults(result);
-    setShowQuiz(false);
+  const handleQuizSubmit = async (answers, timeSpent) => {
+    try {
+      console.log("🔍 handleQuizSubmit called with:", answers);
 
-    return result;
-  } catch (error) {
-    console.error("❌ Quiz submission error:", error);
-    console.error("❌ Error response data:", error.response?.data);
-    
-    const errorMessage = error.response?.data?.message || "Failed to submit quiz";
-    throw new Error(errorMessage);
-  }
-};
+      const token = localStorage.getItem("token");
+
+      if (!Array.isArray(answers)) {
+        throw new Error("Invalid answers format");
+      }
+
+      const response = await axios.post(
+        `http://localhost:5000/api/quizzes/${currentQuiz._id}/attempt`,
+        {
+          answers,
+          timeSpent,
+          lessonId: currentLesson._id,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 10000,
+        }
+      );
+
+      const result = response.data;
+      console.log("✅ Quiz submission successful:", result);
+      setQuizResults(result);
+      setShowQuiz(false);
+
+      // AUTO-COMPLETE if passed and video was watched
+      if (result.passed && videoCompleted) {
+        console.log(
+          "🎉 Quiz passed and video watched - auto-completing lesson"
+        );
+        await markLessonComplete(currentLesson._id);
+      } else if (result.passed && !videoCompleted) {
+        setError("Quiz passed! Please watch the video to complete the lesson.");
+      }
+
+      return result;
+    } catch (error) {
+      console.error("❌ Quiz submission error:", error);
+      const errorMessage =
+        error.response?.data?.message || "Failed to submit quiz";
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
 
   const handleNextLesson = () => {
     if (!course?.curriculum) return;
@@ -517,16 +626,16 @@ const handleQuizSubmit = async (answers, timeSpent) => {
             )}
           </>
         );
-      
+
       case "comments":
         return (
-          <CourseComments 
-            courseId={id} 
-            currentLesson={currentLesson} 
-            user={user} 
+          <CourseComments
+            courseId={id}
+            currentLesson={currentLesson}
+            user={user}
           />
         );
-      
+
       default:
         return null;
     }
@@ -618,7 +727,7 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                         </div>
                       </div>
 
-                      {/* Lesson Actions - More Explicit */}
+                      {/* Lesson Actions - Updated with validation */}
                       <div className="d-flex gap-2 mb-3">
                         <Button
                           variant="outline-primary"
@@ -629,34 +738,8 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                           Previous
                         </Button>
 
-                        {currentLesson ? (
-                          completedLessons.has(currentLesson._id.toString()) ? (
-                            <Button
-                              variant="success"
-                              onClick={() =>
-                                markLessonIncomplete(currentLesson._id)
-                              }
-                            >
-                              <i className="bi bi-check-circle me-1"></i>
-                              Completed
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="primary"
-                              onClick={() =>
-                                markLessonComplete(currentLesson._id)
-                              }
-                            >
-                              <i className="bi bi-check-circle me-1"></i>
-                              Mark Complete
-                            </Button>
-                          )
-                        ) : (
-                          <Button variant="primary" disabled>
-                            <i className="bi bi-check-circle me-1"></i>
-                            Mark Complete
-                          </Button>
-                        )}
+                        {/* Updated completion button */}
+                        {renderCompletionButton()}
 
                         <Button
                           variant="outline-primary"
@@ -667,6 +750,29 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                           <i className="bi bi-chevron-right ms-1"></i>
                         </Button>
                       </div>
+
+                      {/* Quiz Status Display */}
+                      {currentQuiz && (
+                        <div className="quiz-status-alert mb-3">
+                          {!hasPassedQuizForCurrentLesson() ? (
+                            <Alert variant="info" className="py-2">
+                              <i className="bi bi-info-circle me-2"></i>
+                              <strong>Quiz Required:</strong> You must pass the
+                              quiz to complete this lesson.
+                              {!videoCompleted &&
+                                " Watch the video first to unlock the quiz."}
+                            </Alert>
+                          ) : (
+                            <Alert variant="success" className="py-2">
+                              <i className="bi bi-check-circle me-2"></i>
+                              <strong>Quiz Passed!</strong>{" "}
+                              {!videoCompleted
+                                ? "Watch the video to complete the lesson."
+                                : "You can now mark the lesson as complete."}
+                            </Alert>
+                          )}
+                        </div>
+                      )}
 
                       {/* Progress for current lesson */}
                       <div className="progress-section">
@@ -741,26 +847,27 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                 )}
 
                 {/* Quiz Prompt */}
-                {currentQuiz && 
-                 !showQuiz && 
-                 !quizResults && 
-                 !completedLessons.has(currentLesson._id.toString()) && (
-                  <Card className="border-0 shadow-sm">
-                    <Card.Body className="text-center">
-                      <h5>📝 Quiz Available</h5>
-                      <p className="text-muted mb-3">
-                        Complete the video to unlock the quiz and test your knowledge.
-                      </p>
-                      <Button 
-                        variant="primary" 
-                        onClick={() => setShowQuiz(true)}
-                        disabled={!currentLesson}
-                      >
-                        Start Quiz
-                      </Button>
-                    </Card.Body>
-                  </Card>
-                )}
+                {currentQuiz &&
+                  !showQuiz &&
+                  !quizResults &&
+                  !completedLessons.has(currentLesson._id.toString()) && (
+                    <Card className="border-0 shadow-sm">
+                      <Card.Body className="text-center">
+                        <h5>📝 Quiz Available</h5>
+                        <p className="text-muted mb-3">
+                          Complete the video to unlock the quiz and test your
+                          knowledge.
+                        </p>
+                        <Button
+                          variant="primary"
+                          onClick={() => setShowQuiz(true)}
+                          disabled={!currentLesson}
+                        >
+                          Start Quiz
+                        </Button>
+                      </Card.Body>
+                    </Card>
+                  )}
               </>
             ) : (
               <Card className="border-0 shadow-sm">
@@ -787,7 +894,7 @@ const handleQuizSubmit = async (answers, timeSpent) => {
               <Card.Body className="p-0">
                 <Nav variant="pills" className="flex-row">
                   <Nav.Item className="flex-fill">
-                    <Nav.Link 
+                    <Nav.Link
                       active={activeTab === "content"}
                       onClick={() => setActiveTab("content")}
                       className="text-center py-2"
@@ -797,7 +904,7 @@ const handleQuizSubmit = async (answers, timeSpent) => {
                     </Nav.Link>
                   </Nav.Item>
                   <Nav.Item className="flex-fill">
-                    <Nav.Link 
+                    <Nav.Link
                       active={activeTab === "comments"}
                       onClick={() => setActiveTab("comments")}
                       className="text-center py-2"
@@ -811,9 +918,7 @@ const handleQuizSubmit = async (answers, timeSpent) => {
             </Card>
 
             {/* Tab Content */}
-            <div className="tab-content-area">
-              {renderTabContent()}
-            </div>
+            <div className="tab-content-area">{renderTabContent()}</div>
           </div>
         </Col>
       </Row>

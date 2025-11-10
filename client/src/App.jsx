@@ -1,6 +1,6 @@
 // client/src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx'; // Added .jsx
+import { AuthProvider } from './context/AuthContext.jsx';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
@@ -17,9 +17,8 @@ import CourseDetail from './pages/CourseDetail';
 import Checkout from './pages/Checkout';
 import LearnCourse from './pages/LearnCourse';
 import PaymentSuccess from './pages/PaymentSuccess';
-// CORRECTED IMPORT PATH:
-import AnalyticsDashboard from './components/Instructor/AnalyticsDashboard'; // Capital I
-
+import AnalyticsDashboard from './components/Instructor/AnalyticsDashboard';
+import InstructorStudents from './pages/InstructorStudents';
 // Layout wrapper for public pages (with Navbar)
 const PublicLayout = ({ children }) => (
   <>
@@ -74,7 +73,8 @@ function App() {
             <Route path="create-course" element={<CreateCourse />} />
             <Route path="edit-course/:id" element={<EditCourse />} />
             <Route path="browse" element={<BrowseCourses />} />
-            {/* Analytics Route */}
+            {/* CORRECTED: Remove leading slash */}
+            <Route path="students" element={<InstructorStudents />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
           </Route>
 

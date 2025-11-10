@@ -214,11 +214,47 @@ const handleSaveCurriculum = async (saveData) => {
   try {
     const token = localStorage.getItem("token");
     
-    console.log("📤 Save data received:", saveData);
+    console.log("📤 RAW Save data received:", saveData);
 
-    // Handle different save types from the new CourseBuilder
-    if (saveData.type === 'lesson') {
+    // 🔥 ADD DELETE OPERATIONS HERE
+    if (saveData.type === 'delete-section') {
+      console.log("🗑️ Deleting section:", saveData.sectionId);
+      
+      const response = await axios.delete(
+        `http://localhost:5000/api/courses/${editingCourse._id}/sections/${saveData.sectionId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      console.log("✅ Section deleted:", response.data);
+      return response.data;
+      
+    } else if (saveData.type === 'delete-lesson') {
+      console.log("🗑️ Deleting lesson:", {
+        sectionId: saveData.sectionId,
+        lessonId: saveData.lessonId
+      });
+      
+      const response = await axios.delete(
+        `http://localhost:5000/api/courses/${editingCourse._id}/sections/${saveData.sectionId}/lessons/${saveData.lessonId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      console.log("✅ Lesson deleted:", response.data);
+      return response.data;
+      
+    } else if (saveData.type === 'lesson') {
       // Individual lesson save - use granular endpoint
+      console.log("🎯 Saving individual lesson:", {
+        courseId: editingCourse._id,
+        sectionId: saveData.sectionId,
+        lessonId: saveData.lessonId,
+        data: saveData.data
+      });
+
       const response = await axios.put(
         `http://localhost:5000/api/courses/${editingCourse._id}/sections/${saveData.sectionId}/lessons/${saveData.lessonId}`,
         saveData.data,
@@ -235,6 +271,12 @@ const handleSaveCurriculum = async (saveData) => {
 
     } else if (saveData.type === 'section') {
       // Individual section save - use granular endpoint
+      console.log("🎯 Saving individual section:", {
+        courseId: editingCourse._id,
+        sectionId: saveData.sectionId,
+        data: saveData.data
+      });
+
       const response = await axios.put(
         `http://localhost:5000/api/courses/${editingCourse._id}/sections/${saveData.sectionId}`,
         saveData.data,
@@ -251,6 +293,8 @@ const handleSaveCurriculum = async (saveData) => {
 
     } else if (saveData.curriculum) {
       // Bulk curriculum save (fallback for old format)
+      console.log("🎯 Saving bulk curriculum");
+
       const validatedCurriculum = saveData.curriculum.map(
         (section, sectionIndex) => ({
           ...section,
@@ -296,11 +340,13 @@ const handleSaveCurriculum = async (saveData) => {
         throw new Error(errorMsg);
       }
     } else {
+      console.error("❌ Invalid save data format:", saveData);
       throw new Error("Invalid save data format");
     }
 
   } catch (error) {
     console.error("❌ Save error:", error);
+    console.error("❌ Error response:", error.response?.data);
     const errorMessage = error.response?.data?.message || error.message;
     setError("Failed to save: " + errorMessage);
     throw error;
@@ -308,6 +354,7 @@ const handleSaveCurriculum = async (saveData) => {
     setSavingCurriculum(false);
   }
 };
+
 
   const handleCloseCourseBuilder = () => {
     if (savingCurriculum) return; // Prevent closing while saving
@@ -598,28 +645,31 @@ const handleSaveCurriculum = async (saveData) => {
       </Modal>
 
       {/* Course Builder Modal */}
-      <Modal
-        show={showCourseBuilder}
-        onHide={handleCloseCourseBuilder}
-        size="xl"
-        scrollable
-        backdrop={savingCurriculum ? "static" : true}
-      >
-        <Modal.Header closeButton={!savingCurriculum} className="bg-light">
-          <Modal.Title>
-            <i className="bi bi-journals me-2"></i>
-            Course Curriculum: {editingCourse?.title}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="p-0">
-          <CourseBuilder
-            course={editingCourse}
-            onSave={handleSaveCurriculum}
-            onClose={handleCloseCourseBuilder}
-            saving={savingCurriculum}
-          />
-        </Modal.Body>
-      </Modal>
+
+{/* Course Builder Modal */}
+<Modal
+  show={showCourseBuilder}
+  onHide={handleCloseCourseBuilder}
+  size="xl"
+  scrollable
+  backdrop={savingCurriculum ? "static" : true}
+>
+  <Modal.Header closeButton={!savingCurriculum} className="bg-light">
+    <Modal.Title>
+      <i className="bi bi-journals me-2"></i>
+      Course Curriculum: {editingCourse?.title}
+    </Modal.Title>
+  </Modal.Header>
+  <Modal.Body className="p-0">
+    {editingCourse && (
+      <CourseBuilder
+        course={editingCourse}
+        onSave={handleSaveCurriculum}
+        saving={savingCurriculum}
+      />
+    )}
+  </Modal.Body>
+</Modal>
 
       {/* Share Success Toast */}
       <ToastContainer position="top-end" className="p-3">
